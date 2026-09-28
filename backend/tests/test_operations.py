@@ -184,3 +184,40 @@ def test_zero_grace_and_expired_departure(client, clock):
     assert client.get("/api/missions/" + mission["id"]).json()["contact_status"] == "contact_overdue"
     old = client.get("/api/missions/" + str(uid("mission-1"))).json()
     assert action(client, old, "depart").status_code == 422
+
+def test_observation_receipt_replay_is_idempotent(client, clock, database):
+    mission, _ = start(client, clock)
+    event_id = str(uuid4())
+    body = {"observed_at": clock[0].isoformat(), "source": "radio", "note": "Receipt test", "client_event_id": event_id}
+    first = action(client, mission, "check-ins", **body)
+    assert first.status_code == 201
+    assert first.json()["acknowledged_event_id"] == event_id
+    repeated = action(client, mission, "check-ins", **body)
+    assert repeated.status_code == 201
+    assert repeated.json()["version"] == first.json()["version"]
+    assert len(repeated.json()["check_ins"]) == 1
+    # Retrying a lost acknowledgement remains safe after the mission has completed.
+    assert action(client, first.json(), "complete", note="Team returned").status_code == 200
+    repeated = action(client, mission, "check-ins", **body)
+    assert repeated.status_code == 201
+    assert repeated.json()["status"] == "completed"
+    with Session(database) as session:
+        assert session.get(Event, UUID(event_id)).kind == "check_in.recorded"
+
+
+def test_reused_receipt_id_cannot_change_payload(client, clock):
+    mission, _ = start(client, clock)
+    event_id = str(uuid4())
+    body = {"observed_at": clock[0].isoformat(), "source": "radio", "note": "Original", "client_event_id": event_id}
+    first = action(client, mission, "check-ins", **body).json()
+    assert action(client, first, "check-ins", **{**body, "note": "Different"}).status_code == 409
+    assert client.get("/api/missions/" + mission["id"]).json()["version"] == first["version"]
+
+
+def test_position_receipt_replay_does_not_duplicate(client, clock):
+    mission, _ = start(client, clock)
+    body = {"observed_at": clock[0].isoformat(), "source": "gnss", "latitude": -70.8, "longitude": 11.8, "client_event_id": str(uuid4())}
+    first = action(client, mission, "positions", **body).json()
+    repeated = action(client, mission, "positions", **body).json()
+    assert repeated["last_position"]["id"] == first["last_position"]["id"]
+    assert repeated["version"] == first["version"]

@@ -4,9 +4,9 @@ A polar expedition operations prototype centered on a **Connectivity-Aware Missi
 
 ## Status
 
-Phase 2 implemented: mission planning and editing, personnel/vehicle assignments, departure, check-ins, position recording and maps, configurable overdue-contact rules, explicit operator escalation and team return. The Phase 1 API, migrations, demo fixtures, Compose setup and CI remain in place.
+Phases 1–3 implemented. Phase 2 provides: mission planning and editing, personnel/vehicle assignments, departure, check-ins, position recording and maps, configurable overdue-contact rules, explicit operator escalation and team return. The Phase 1 API, migrations, demo fixtures, Compose setup and CI remain in place.
 
-Offline capture and priority synchronization are future phases. No satellite, live tracking hardware or emergency dispatch is connected. Map imagery requires internet; recorded coordinates and timestamps remain available if imagery fails.
+Phase 3 adds a cached app shell, saved mission packs, atomic local check-ins/positions, delivery history and safe manual delivery. Priority-based synchronization remains Phase 4. No live tracking hardware or emergency dispatch is connected. A bounded coordinate grid works offline; the optional online basemap requires internet.
 
 ## Start with Docker (recommended)
 
@@ -48,10 +48,11 @@ Frontend, from a second terminal at the repository root:
 ```powershell
 cd frontend
 npm ci
-npm run dev
+npm run build
+npm run preview -- --port 5173
 ```
 
-On macOS/Linux, use `.venv/bin/python` instead. Set `DATABASE_URL` in the backend terminal to use an existing PostgreSQL database. The frontend development proxy forwards `/api` to port 8000; override `API_PROXY_TARGET` if needed. The backend does not automatically read a .env file; Compose reads the root .env.
+On macOS/Linux, use `.venv/bin/python` instead. Set `DATABASE_URL` in the backend terminal to use an existing PostgreSQL database. The frontend proxy forwards `/api` to port 8000; override `API_PROXY_TARGET` if needed. The backend does not automatically read a .env file; Compose reads the root .env.
 
 ## Verification
 
@@ -66,7 +67,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-Browser tests WRITE fictional missions and move the seeded FM-002 plan into the past. Run them only against a disposable seeded API, not a database you want to preserve. They start a dedicated Vite server on port 5175. For an isolated local run, start a second backend terminal with DATABASE_URL set to sqlite:///./browser-tests.sqlite3, run migrations and seeding, then start Uvicorn on port 8001. Set API_PROXY_TARGET to http://127.0.0.1:8001 in the frontend test terminal. CI uses its disposable PostgreSQL database. Backend tests use an isolated temporary SQLite database by default. Set `TEST_DATABASE_URL` **only to a disposable test database** for PostgreSQL tests: the suite applies and rolls back its schema. CI runs those tests against PostgreSQL 17.
+Browser tests WRITE fictional missions and move the seeded FM-002 plan into the past. Run them only against a disposable seeded API, not a database you want to preserve. They build the PWA and start a dedicated production preview on port 5175. Tests run serially against shared fictional resources. For an isolated local run, start a second backend terminal with DATABASE_URL set to sqlite:///./browser-tests.sqlite3, run migrations and seeding, then start Uvicorn on port 8001. Set API_PROXY_TARGET to http://127.0.0.1:8001 in the frontend test terminal. CI uses its disposable PostgreSQL database. Backend tests use an isolated temporary SQLite database by default. Set `TEST_DATABASE_URL` **only to a disposable test database** for PostgreSQL tests: the suite applies and rolls back its schema. CI runs those tests against PostgreSQL 17.
 
 ## Repository
 
@@ -75,6 +76,7 @@ Browser tests WRITE fictional missions and move the seeded FM-002 plan into the 
 - `backend/migrations/`: versioned schema changes.
 - `compose.yaml`: local PostgreSQL, API and web services.
 - [API and data contracts](docs/API.md).
+- [Offline setup, behavior and limits](docs/OFFLINE.md).
 - [Development phases](docs/ROADMAP.md).
 
 ## Demonstration data
@@ -85,17 +87,17 @@ Locations are last confirmed observations, never guaranteed current positions. O
 
 ## Next milestone
 
-Phase 3: local-first storage, cached application shell, pending event queue and offline reload support.
+Phase 4: connectivity profiles, priority scheduling, bandwidth budgets, automatic reconnection delivery and conflict resolution.
 
-## Phase 2 verification record
+## Phase 3 verification record
 
-Verified locally: backend tests (12 passed), migration/model consistency, frontend build and lint, Edge browser tests (5 passed), desktop mission and mobile planning screenshot review, live API/proxy requests, and Compose configuration validation. Full Docker/PostgreSQL startup was not verified because the local Docker engine was unavailable. CI is configured to exercise PostgreSQL but its result must be checked on GitHub.
+Verified locally: backend tests (15 passed), migration/model consistency, frontend build and lint, Edge browser tests (9 passed), offline mission and mobile planning screenshot review, live API/proxy requests, and Compose configuration validation. Full Docker/PostgreSQL startup was not verified because the local Docker engine was unavailable. CI is configured to exercise PostgreSQL but its result must be checked on GitHub.
 
 If downloaded Chromium cannot launch on Windows, run browser tests with `$env:PLAYWRIGHT_CHANNEL="msedge"` to use installed Edge.
 
-## Upgrade an existing Phase 1 checkout
+## Upgrade an existing checkout
 
-Stop the API, run npm ci in frontend, run .venv/Scripts/python -m alembic upgrade head in backend, then restart both services. With Docker, use docker compose up --build -d. Existing records are preserved.
+Stop the API, run npm ci in frontend, run .venv/Scripts/python -m alembic upgrade head in backend, then rebuild the frontend with npm run build and start npm run preview; restart the API too. With Docker, use docker compose up --build -d. Existing records are preserved.
 
 ## Try Phase 2
 
@@ -106,3 +108,7 @@ Stop the API, run npm ci in frontend, run .venv/Scripts/python -m alembic upgrad
 5. Complete the mission after confirming everyone returned, then check the personnel overview.
 
 The seeded PB-01 team is already in the field. Edit the planned FM-002 mission to suitable times before departing with its PB-02 team.
+
+## Try Phase 3
+
+Use the built preview (not npm run dev). Click Save mission pack and wait for both App shell cached and Mission pack saved. Disconnect and reload; record check-ins or positions, then reload again to verify they remain pending. Reconnect and click Send pending reports. Only a matching server receipt marks a report acknowledged. See [the offline guide](docs/OFFLINE.md).

@@ -83,8 +83,8 @@ def claim_version(session, mission, version):
     session.refresh(mission)
 
 
-def audit(session, mission, kind, now, payload, occurred_at=None, priority=2):
-    session.add(Event(id=uuid4(), mission_id=mission.id, device_id=f"server:{mission.id}",
+def audit(session, mission, kind, now, payload, occurred_at=None, priority=2, event_id=None):
+    session.add(Event(id=event_id or uuid4(), mission_id=mission.id, device_id=f"server:{mission.id}",
                       sequence=mission.version, kind=kind, priority=priority,
                       occurred_at=occurred_at or now, received_at=now,
                       payload={"schema_version": 1, **payload}))
@@ -141,3 +141,15 @@ def person_summary(session, person, now):
                             .where(Assignment.personnel_id == person.id, Mission.status == "in_field"))
     return {**record(person), "operational_status": summary(session, active, now)["operational_status"] if active else "at_station",
             "active_mission_id": active.id if active else None, "active_mission_code": active.code if active else None}
+
+
+def observation_replay(session, mission, body, kind):
+    if body.client_event_id is None:
+        return False
+    event = session.get(Event, body.client_event_id)
+    if event is None:
+        return False
+    expected = body.model_dump(mode="json", exclude={"version", "client_event_id"})
+    if event.mission_id != mission.id or event.kind != kind or event.payload.get("client_request") != expected:
+        raise HTTPException(409, "This report ID already belongs to a different observation.")
+    return True

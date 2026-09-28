@@ -1,88 +1,45 @@
-import { useEffect, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-maplibregl.setWorkerUrl(workerUrl);
+import { lazy, Suspense, useState } from "react";
 import type { Position } from "./api";
-import { utc } from "./api";
-
+const OnlineMap = lazy(() => import("./OnlineMap"));
 export default function PositionMap({ position }: { position: Position }) {
-  const container = useRef<HTMLDivElement>(null);
-  const [unavailable, setUnavailable] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (!container.current) return;
-    let map: maplibregl.Map | undefined;
-    try {
-      map = new maplibregl.Map({
-        container: container.current,
-        center: [position.longitude, position.latitude],
-        zoom: 9,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: "raster",
-              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-              tileSize: 256,
-              maxzoom: 19,
-              attribution:
-                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-            },
-          },
-          layers: [{ id: "base", type: "raster", source: "osm" }],
-        },
-      });
-      map.addControl(new maplibregl.NavigationControl(), "top-right");
-      new maplibregl.Marker({ color: "#267d77" })
-        .setLngLat([position.longitude, position.latitude])
-        .setPopup(
-          new maplibregl.Popup().setText(
-            "Last confirmed: " + utc(position.observed_at),
-          ),
-        )
-        .addTo(map);
-      map.on("error", () => setUnavailable(true));
-      map.on("load", () => setLoaded(true));
-    } catch {
-      queueMicrotask(() => setUnavailable(true));
-    }
-    return () => map?.remove();
-  }, [
-    position.id,
-    position.latitude,
-    position.longitude,
-    position.observed_at,
-  ]);
+  const [onlineMap, setOnlineMap] = useState(false);
+  const x = (position.longitude - 11) * 100;
+  const y = ((-70.5 - position.latitude) / 0.6) * 100;
+  const inside = x >= 0 && x <= 100 && y >= 0 && y <= 100;
   return (
-    <div>
-      <div
-        ref={container}
-        className="position-map"
-        aria-label="Map of the last confirmed position"
-        data-state={unavailable ? "unavailable" : loaded ? "ready" : "loading"}
-      />
-      {!loaded && !unavailable && (
-        <p role="status" className="muted">
-          Loading map imagery�
-        </p>
-      )}
-      {unavailable && (
-        <p role="status" className="muted">
-          Map imagery is unavailable. The recorded coordinates and timestamp
-          remain available above.
-        </p>
-      )}
-      {Math.abs(position.latitude) > 85 && (
+    <section className="map-section">
+      <h3>Local coordinate map</h3>
+      <div className="offline-map" aria-label="Offline demo coordinate map">
+        <img
+          src="/maps/maitri-demo.svg"
+          alt="Bounded schematic grid from 70.50 to 71.10 degrees south and 11 to 12 degrees east"
+        />
+        {inside && (
+          <span
+            className="map-point"
+            aria-label="Last confirmed observation"
+            style={{ left: x + "%", top: y + "%" }}
+          />
+        )}
+      </div>
+      {!inside && (
         <p className="muted">
-          This map projection cannot accurately show locations near the pole.
-          Use the recorded coordinates.
+          This position is outside the saved demo area. Use the recorded
+          coordinates.
         </p>
       )}
       <p className="muted">
-        Recorded observation, not a live position. Basemap requires internet; no
-        route is inferred.
+        Available offline. This schematic is not a navigation chart. Marker uses
+        the last server-confirmed observation.
       </p>
-    </div>
+      <button type="button" onClick={() => setOnlineMap((v) => !v)}>
+        {onlineMap ? "Hide online map" : "Load online map"}
+      </button>
+      {onlineMap && (
+        <Suspense fallback={<p>Loading online map...</p>}>
+          <OnlineMap position={position} />
+        </Suspense>
+      )}
+    </section>
   );
 }

@@ -45,6 +45,8 @@ Completion: a seeded team can depart, check in, become overdue and return; stale
 
 ## Phase 3 — Local-first operation
 
+Status: implemented and locally verified for saved missions, offline check-ins/positions and explicit foreground delivery. Plans/lifecycle changes remain online-only.
+
 Deliverables:
 - Cached application shell and bounded local demo map assets.
 - IndexedDB storage for mission data and an outgoing event queue.
@@ -112,4 +114,4 @@ Completion: authorized stakeholders accept measured reliability and security res
 
 ## Immediate next task
 
-Start Phase 3: cache the application shell and add persistent local mission storage and an outgoing event queue.
+Start Phase 4: implement connectivity profiles, priority scheduling, bandwidth budgets, automatic delivery and explicit conflict resolution.

@@ -45,6 +45,7 @@ class VersionInput(Input):
 
 
 class Observation(VersionInput):
+    client_event_id: UUID | None = None
     observed_at: AwareDatetime
     source: Literal["manual", "radio", "gnss", "simulated_gnss", "simulated_radio"]
 
@@ -146,6 +147,7 @@ class EventOut(BaseModel):
 
 
 class MissionDetailOut(MissionOut):
+    acknowledged_event_id: UUID | None = None
     personnel: list[PersonOut]
     vehicle: VehicleOut
     last_position: PositionOut | None

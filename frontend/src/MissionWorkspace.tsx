@@ -1,4 +1,7 @@
 import { lazy, Suspense, useState } from "react";
+import { LocalReports } from "./OfflinePanel";
+import { useDeliveries, useOnline } from "./useDeliveries";
+import { saveReport } from "./localStore";
 import type { FormEvent } from "react";
 import { request, statusLabel, toISO, utc } from "./api";
 import type { MissionDetail } from "./api";
@@ -54,13 +57,23 @@ function ActionForm({
             : action === "escalation"
               ? { version, level, reason: note }
               : { version, note };
-      onSaved(
-        await request<MissionDetail>(
-          "missions/" + mission.id + "/" + action,
-          "POST",
-          body,
-        ),
-      );
+      if (action === "check-ins" || action === "positions") {
+        onSaved(
+          await saveReport(mission, action, {
+            ...body,
+            observed_at: toISO(observed),
+            source,
+          }),
+        );
+      } else {
+        onSaved(
+          await request<MissionDetail>(
+            "missions/" + mission.id + "/" + action,
+            "POST",
+            body,
+          ),
+        );
+      }
       onCancel();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
@@ -71,6 +84,12 @@ function ActionForm({
   return (
     <form className="action-form" onSubmit={submit}>
       <h3>{titles[action]}</h3>
+      {(action === "check-ins" || action === "positions") && (
+        <p className="muted">
+          Saved on this device first. Delivery is attempted when connected;
+          check the delivery status.
+        </p>
+      )}
       <fieldset disabled={busy} className="form-fields">
         {(action === "positions" || action === "check-ins") && (
           <div className="form-grid">
@@ -150,6 +169,13 @@ function ActionForm({
                   ? "Return note"
                   : "Reason"}
               <textarea
+                aria-label={
+                  action === "check-ins"
+                    ? "Check-in note"
+                    : action === "complete"
+                      ? "Return note"
+                      : "Reason"
+                }
                 required
                 minLength={action === "check-ins" ? 1 : 3}
                 maxLength={500}
@@ -206,6 +232,9 @@ export default function MissionWorkspace({
   onBack: () => void;
 }) {
   const [action, setAction] = useState<Action | null>(null);
+  const online = useOnline();
+  const { items: localItems } = useDeliveries(mission.id);
+  const pending = localItems.some((item) => item.state !== "acknowledged");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function depart() {
@@ -270,9 +299,15 @@ export default function MissionWorkspace({
       )}
       {!action && mission.status !== "completed" && (
         <div className="actions">
-          <button onClick={onEdit}>Edit plan</button>
+          <button disabled={pending || !online} onClick={onEdit}>
+            Edit plan
+          </button>
           {mission.status === "planned" ? (
-            <button className="primary" disabled={busy} onClick={depart}>
+            <button
+              className="primary"
+              disabled={busy || !online}
+              onClick={depart}
+            >
               {busy ? "Recording…" : "Record departure"}
             </button>
           ) : (
@@ -283,10 +318,16 @@ export default function MissionWorkspace({
               <button onClick={() => setAction("positions")}>
                 Record position
               </button>
-              <button onClick={() => setAction("escalation")}>
+              <button
+                disabled={pending || !online}
+                onClick={() => setAction("escalation")}
+              >
                 Update escalation
               </button>
-              <button onClick={() => setAction("complete")}>
+              <button
+                disabled={pending || !online}
+                onClick={() => setAction("complete")}
+              >
                 Complete mission
               </button>
             </>
@@ -307,6 +348,19 @@ export default function MissionWorkspace({
           onCancel={() => setAction(null)}
         />
       )}
+      {!online && (
+        <p className="muted">
+          Check-ins and positions can be saved offline. Plans and lifecycle
+          changes need a server connection.
+        </p>
+      )}
+      {pending && (
+        <p className="muted">
+          Deliver pending reports before editing the plan, changing escalation
+          or completing this mission.
+        </p>
+      )}
+      <LocalReports missionId={mission.id} />
       <div className="detail-grid">
         <div>
           <h3>Mission plan</h3>

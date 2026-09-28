@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { get, statusLabel, utc } from "./api";
 import type { Mission, MissionDetail, Person, Vehicle } from "./api";
+import { useOnline } from "./useDeliveries";
+import OfflinePanel from "./OfflinePanel";
 import MissionForm from "./MissionForm";
 import MissionWorkspace from "./MissionWorkspace";
 import "./App.css";
@@ -8,6 +10,7 @@ const pages = ["Overview", "Missions", "Personnel", "Vehicles"] as const;
 type Page = (typeof pages)[number];
 
 export default function App() {
+  const online = useOnline();
   const [page, setPage] = useState<Page>("Overview");
   const [missions, setMissions] = useState<Mission[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -98,7 +101,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-note">
-          ● DEVELOPMENT BUILD<p>Phase 02 / Accountability</p>
+          ● DEVELOPMENT BUILD<p>Phase 03 / Local-first</p>
           <small>
             Fictional expedition data.
             <br />
@@ -136,6 +139,7 @@ export default function App() {
           time; old demo missions may be overdue. No live tracking or emergency
           dispatch is connected.
         </div>
+        <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
         {error && (
           <div role="alert" className="panel error">
             {error} Previously loaded records may be stale.
@@ -222,7 +226,11 @@ export default function App() {
                       Mission plans and last confirmed field information.
                     </p>
                   </div>
-                  <button className="primary" onClick={() => setForm("create")}>
+                  <button
+                    className="primary"
+                    disabled={!online}
+                    onClick={() => setForm("create")}
+                  >
                     New mission
                   </button>
                 </div>

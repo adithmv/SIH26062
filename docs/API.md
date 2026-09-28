@@ -1,6 +1,6 @@
 # Phase 2 API and operational rules
 
-Base path: /api. This prototype is unauthenticated and intended for local fictional demonstrations. Interactive schemas are at /docs. Offline writes, synchronization and emergency dispatch are not implemented.
+Base path: /api. This prototype is unauthenticated and intended for local fictional demonstrations. Interactive schemas are at /docs. The frontend can capture check-ins and positions offline and deliver them explicitly; priority synchronization and emergency dispatch are not implemented. See OFFLINE.md for delivery behavior.
 
 ## Endpoints
 
@@ -74,3 +74,7 @@ Mutation and audit event commit together. Events use stable UUIDs, device_id = s
 ## Upgrade
 
 Run alembic upgrade head from backend before starting the API. Migration 911a743ebba4 adds policy, escalation, actual departure and completion fields with defaults that preserve existing rows. Run alembic check to compare model and migration state.
+
+## Phase 3 observation receipts
+
+Check-in and position payloads may include client_event_id (UUID). A successful response includes acknowledged_event_id with that same ID. Repeating the same ID and observation is idempotent, including after completion. Reusing it for different contents, mission or type returns 409. Version is excluded from the replay identity; all observation fields are included. Existing clients without this field retain Phase 2 behavior. No database migration is required: receipts use the existing audit-event primary key.

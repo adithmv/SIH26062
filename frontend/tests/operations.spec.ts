@@ -81,6 +81,9 @@ test("plans, departs, reports, escalates and returns a field team", async ({
   await page.getByLabel("Longitude", { exact: true }).fill("11.76");
   await page.getByRole("button", { name: "Save record", exact: true }).click();
   await expect(page.getByText("-70.7800°, 11.7600°")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Load online map", exact: true })
+    .click();
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await expect.poll(() => workerErrors.length).toBe(0);
   await page.screenshot({
@@ -113,11 +116,9 @@ test("plans, departs, reports, escalates and returns a field team", async ({
     page.getByRole("button", { name: "Record check-in", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Personnel", exact: true }).click();
-  const person = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("heading", { name: "Mira Shah", exact: true }),
-    });
+  const person = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "Mira Shah", exact: true }),
+  });
   await expect(person).toContainText("at station");
 });
 

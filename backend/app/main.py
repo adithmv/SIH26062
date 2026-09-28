@@ -10,12 +10,12 @@ from sqlalchemy.orm import Session
 from .db import get_session
 from .models import Assignment, CheckIn, Event, Mission, Personnel, Position, Vehicle
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
-                         require_field, require_mission, resources, summary, utc, validate_observation, person_summary)
+                         require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
                       MissionDetailOut, MissionEdit, MissionOut, MissionPlan, PersonOut,
                       PositionInput, VehicleOut, VersionInput)
 
-app = FastAPI(title="SIH26062 Mission Operations", version="0.2.0")
+app = FastAPI(title="SIH26062 Mission Operations", version="0.3.0")
 
 
 @app.exception_handler(IntegrityError)
@@ -29,7 +29,7 @@ def health(session: Session = Depends(get_session)):
         session.execute(text("SELECT 1"))
     except SQLAlchemyError:
         raise HTTPException(503, "Database unavailable") from None
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 @app.get("/api/missions", response_model=list[MissionOut])
@@ -97,27 +97,31 @@ def depart(mission_id: UUID, body: VersionInput, session: Session = Depends(get_
 @app.post("/api/missions/{mission_id}/check-ins", response_model=MissionDetailOut, status_code=201)
 def check_in(mission_id: UUID, body: CheckInInput, session: Session = Depends(get_session), now: datetime = Depends(now_utc)):
     mission = require_mission(session, mission_id)
+    if observation_replay(session, mission, body, "check_in.recorded"):
+        return {**detail(session, mission, now), "acknowledged_event_id": body.client_event_id}
     claim_version(session, mission, body.version)
     require_field(mission)
     validate_observation(mission, body.observed_at, now)
-    row = CheckIn(id=uuid4(), mission_id=mission.id, received_at=now, **body.model_dump(exclude={"version"}))
+    row = CheckIn(id=uuid4(), mission_id=mission.id, received_at=now, **body.model_dump(exclude={"version", "client_event_id"}))
     session.add(row)
-    audit(session, mission, "check_in.recorded", now, {"check_in_id": str(row.id)}, body.observed_at, 1)
+    audit(session, mission, "check_in.recorded", now, {"check_in_id": str(row.id), "client_request": body.model_dump(mode="json", exclude={"version", "client_event_id"})}, body.observed_at, 1, event_id=body.client_event_id)
     commit(session)
-    return detail(session, mission, now)
+    return {**detail(session, mission, now), "acknowledged_event_id": body.client_event_id}
 
 
 @app.post("/api/missions/{mission_id}/positions", response_model=MissionDetailOut, status_code=201)
 def position(mission_id: UUID, body: PositionInput, session: Session = Depends(get_session), now: datetime = Depends(now_utc)):
     mission = require_mission(session, mission_id)
+    if observation_replay(session, mission, body, "position.recorded"):
+        return {**detail(session, mission, now), "acknowledged_event_id": body.client_event_id}
     claim_version(session, mission, body.version)
     require_field(mission)
     validate_observation(mission, body.observed_at, now)
-    row = Position(id=uuid4(), mission_id=mission.id, received_at=now, **body.model_dump(exclude={"version"}))
+    row = Position(id=uuid4(), mission_id=mission.id, received_at=now, **body.model_dump(exclude={"version", "client_event_id"}))
     session.add(row)
-    audit(session, mission, "position.recorded", now, {"position_id": str(row.id)}, body.observed_at, 1)
+    audit(session, mission, "position.recorded", now, {"position_id": str(row.id), "client_request": body.model_dump(mode="json", exclude={"version", "client_event_id"})}, body.observed_at, 1, event_id=body.client_event_id)
     commit(session)
-    return detail(session, mission, now)
+    return {**detail(session, mission, now), "acknowledged_event_id": body.client_event_id}
 
 
 @app.post("/api/missions/{mission_id}/escalation", response_model=MissionDetailOut)

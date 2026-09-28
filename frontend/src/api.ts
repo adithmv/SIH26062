@@ -1,3 +1,5 @@
+import { cacheValue, cachedValue } from "./localStore";
+import { ApiError, network } from "./transport";
 export type Mission = {
   id: string;
   code: string;
@@ -42,6 +44,7 @@ export type Position = {
   received_at: string;
 };
 export type MissionDetail = Mission & {
+  acknowledged_event_id?: string | null;
   personnel: Person[];
   vehicle: Vehicle;
   last_position: Position | null;
@@ -61,33 +64,33 @@ export async function request<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch("/api/" + path, {
-    method,
-    signal,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const detail =
-      typeof data.detail === "string"
-        ? data.detail
-        : Array.isArray(data.detail)
-          ? data.detail
-              .map(
-                (e: { msg: string; loc: string[] }) =>
-                  e.loc.slice(1).join(".") + ": " + e.msg,
-              )
-              .join("; ")
-          : "Check that the API is running.";
+  const value = await network<T>(path, method, body, signal);
+  if (method === "GET") await cacheValue(path, value);
+  else if (value && typeof value === "object" && "id" in value)
+    await cacheValue("missions/" + String(value.id), value);
+  return value;
+}
+export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  try {
+    const value = await request<T>(path, "GET", undefined, signal);
+    window.dispatchEvent(
+      new CustomEvent("polaris-read", { detail: { path, cached: false } }),
+    );
+    return value;
+  } catch (error) {
+    if (signal?.aborted || (error instanceof ApiError && error.status < 500))
+      throw error;
+    const cached = await cachedValue<T>(path).catch(() => undefined);
+    if (cached !== undefined) {
+      window.dispatchEvent(
+        new CustomEvent("polaris-read", { detail: { path, cached: true } }),
+      );
+      return cached;
+    }
     throw new Error(
-      (method === "GET" ? "Unable to load data. " : "Not saved. ") + detail,
+      "Unable to load data. No saved copy is available on this device. Connect and save a mission pack first.",
     );
   }
-  return response.json() as Promise<T>;
-}
-export function get<T>(path: string, signal?: AbortSignal) {
-  return request<T>(path, "GET", undefined, signal);
 }
 export function utc(value: string) {
   return (
