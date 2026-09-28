@@ -72,7 +72,10 @@ test("plans, departs, reports, escalates and returns a field team", async ({
     .fill("All team members accounted for at ridge.");
   await page.getByRole("button", { name: "Save record", exact: true }).click();
   await expect(
-    page.getByText("All team members accounted for at ridge.", { exact: true }),
+    page
+      .locator("p")
+      .filter({ hasText: "All team members accounted for at ridge." })
+      .first(),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Record position", exact: true })

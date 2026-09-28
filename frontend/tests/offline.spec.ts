@@ -76,7 +76,7 @@ async function checkIn(page: Page, note: string) {
   await page.getByLabel("Check-in note", { exact: true }).fill(note);
   await page.getByRole("button", { name: "Save record", exact: true }).click();
 }
-test("offline reload preserves reports, maps and delivery state before safe manual delivery", async ({
+test("offline reload preserves reports, maps and delivery state before automatic reconnect delivery", async ({
   page,
   context,
   request,
@@ -130,9 +130,6 @@ test("offline reload preserves reports, maps and delivery state before safe manu
     fullPage: true,
   });
   await context.setOffline(false);
-  await page
-    .getByRole("button", { name: "Send pending reports", exact: true })
-    .click();
   await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible();
   const accepted = await (
     await request.get("/api/missions/" + mission.id)
@@ -254,7 +251,52 @@ test("a conflicting queued report remains visible and never silently overwrites 
   expect(
     (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
   ).toHaveLength(1);
+  await page.getByText("Delivery history (1)", { exact: true }).click();
+  await page.getByRole("button", { name: "Review server conflict" }).click();
+  await expect(page.getByLabel("Review conflicting report")).toContainText(
+    "Other station update",
+  );
+  await page
+    .getByRole("button", { name: "Append report to reviewed version" })
+    .click();
+  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible();
+  expect(
+    (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
+  ).toHaveLength(2);
 });
+test("profile budget blocks delivery until broadband reconnects", async ({
+  page,
+  request,
+}) => {
+  const mission = await fieldMission(request);
+  await prepare(page, mission.code);
+  await page.getByLabel("Connection profile").selectOption("offline");
+  await checkIn(page, "Simulator queued report");
+  expect(
+    (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
+  ).toHaveLength(0);
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "polaris-byte-meter",
+      JSON.stringify({ start: Date.now(), bytes: 2048 }),
+    ),
+  );
+  await page.getByLabel("Connection profile").selectOption("constrained");
+  await page
+    .getByRole("button", { name: "Send pending reports", exact: true })
+    .click();
+  await expect(page.locator(".local-reports")).toContainText(
+    "budget exhausted",
+  );
+  expect(
+    (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
+  ).toHaveLength(0);
+  await page.getByLabel("Connection profile").selectOption("broadband");
+  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+});
+
 test.afterEach(async ({ request }) => {
   const missions = await (await request.get("/api/missions")).json();
   for (const m of missions.filter(

@@ -112,3 +112,10 @@ The seeded PB-01 team is already in the field. Edit the planned FM-002 mission t
 ## Try Phase 3
 
 Use the built preview (not npm run dev). Click Save mission pack and wait for both App shell cached and Mission pack saved. Disconnect and reload; record check-ins or positions, then reload again to verify they remain pending. Reconnect and click Send pending reports. Only a matching server receipt marks a report acknowledged. See [the offline guide](docs/OFFLINE.md).
+
+
+## Try Phase 4 (in progress)
+
+Save a mission pack, choose Offline in Connection profile, then record a check-in. Choose Constrained or Broadband and leave the app open: queued reports deliver automatically. Constrained simulates 800 ms latency and a 2,048-byte outgoing JSON budget per minute. Simulate request failures exercises retained reports and bounded retries; Check server connection probes the API. For a rejected version, open Delivery history and Review server conflict before choosing to append the original observation.
+
+Verified: production build, frontend lint, 15 backend tests and 10 browser tests. This increment covers existing check-ins and positions. SOS/routine/inventory event producers, all five priority classes and separate attachment transfer remain on the Phase 4 roadmap.

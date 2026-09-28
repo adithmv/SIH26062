@@ -101,7 +101,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-note">
-          ● DEVELOPMENT BUILD<p>Phase 03 / Local-first</p>
+          ● DEVELOPMENT BUILD<p>Phase 04 / Connectivity</p>
           <small>
             Fictional expedition data.
             <br />

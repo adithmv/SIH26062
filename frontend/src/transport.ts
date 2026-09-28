@@ -1,3 +1,4 @@
+import { beforeRequest } from "./connectivity";
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -17,6 +18,7 @@ export async function network<T>(
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 5000);
   try {
+    await beforeRequest(body, controller.signal);
     const response = await fetch("/api/" + path, {
       method,
       signal: controller.signal,

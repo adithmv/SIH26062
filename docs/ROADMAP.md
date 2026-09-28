@@ -56,7 +56,7 @@ Deliverables:
 
 Completion: after initial setup, disconnect and reload; mission records remain available and new check-ins survive another reload without a server connection.
 
-## Phase 4 — Connectivity-aware synchronization
+## Phase 4 — Connectivity-aware synchronization (in progress)
 
 Deliverables:
 - Broadband, constrained and offline transport profiles.
@@ -115,3 +115,5 @@ Completion: authorized stakeholders accept measured reliability and security res
 ## Immediate next task
 
 Start Phase 4: implement connectivity profiles, priority scheduling, bandwidth budgets, automatic delivery and explicit conflict resolution.
+
+Phase 4 progress: profiles, enforced request latency/outgoing JSON budget/failures, foreground automatic retries, existing-report priority scheduling, and explicit observation conflict review are implemented. SOS/routine producers, all five event classes and separate attachment transfer remain.

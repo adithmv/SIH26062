@@ -1,3 +1,4 @@
+import { LinkDeferred, linkSettings } from "./connectivity";
 import Dexie from "dexie";
 import type { Table } from "dexie";
 import type { Mission, MissionDetail, Person, Vehicle } from "./api";
@@ -26,6 +27,10 @@ export type Delivery = LocalReport & {
   state: "pending" | "sending" | "acknowledged" | "failed";
   error?: string;
   acknowledgedAt?: string;
+  attempts?: number;
+  retryAt?: number;
+  conflict?: boolean;
+  resolution?: string;
 };
 type Setting = { key: string; value: string };
 
@@ -192,7 +197,8 @@ export async function saveReport(
     )) ?? mission
   );
 }
-export async function sendPending(retryId?: string) {
+export async function sendPending(retryId?: string, automatic = false) {
+  if (linkSettings().profile === "offline" || !navigator.onLine) return;
   if (!navigator.locks)
     throw new Error(
       "This browser cannot safely coordinate delivery across tabs. Reports remain saved locally.",
@@ -203,8 +209,20 @@ export async function sendPending(retryId?: string) {
     async (lock) => {
       if (!lock) return;
       if (retryId)
-        await db.outbox.update(retryId, { state: "pending", error: undefined });
+        await db.outbox.update(retryId, {
+          state: "pending",
+          error: undefined,
+          attempts: 0,
+          retryAt: 0,
+        });
       const records = await db.outbox.orderBy("createdAt").toArray();
+      // Safety check-ins precede location reports; timestamps break ties deterministically.
+      records.sort(
+        (a, b) =>
+          (a.kind === "check-ins" ? 1 : 2) - (b.kind === "check-ins" ? 1 : 2) ||
+          a.createdAt.localeCompare(b.createdAt) ||
+          a.id.localeCompare(b.id),
+      );
       const blocked = new Set(
         records.filter((r) => r.state === "failed").map((r) => r.missionId),
       );
@@ -212,7 +230,9 @@ export async function sendPending(retryId?: string) {
         if (
           entry.state === "acknowledged" ||
           entry.state === "failed" ||
-          blocked.has(entry.missionId)
+          blocked.has(entry.missionId) ||
+          (automatic &&
+            ((entry.retryAt ?? 0) > Date.now() || (entry.attempts ?? 0) >= 5))
         )
           continue;
         // Read again: preceding acknowledgements may have advanced the version for this local sequence.
@@ -260,12 +280,26 @@ export async function sendPending(retryId?: string) {
             }
           });
         } catch (error) {
-          const rejection = error instanceof ApiError && error.status < 500;
+          const rejection =
+            error instanceof ApiError &&
+            error.status < 500 &&
+            error.status !== 429;
+          const deferred = error instanceof LinkDeferred;
+          const attempts = (current.attempts ?? 0) + (deferred ? 0 : 1);
           await db.outbox.update(entry.id, {
             state: rejection ? "failed" : "pending",
+            attempts,
+            retryAt:
+              Date.now() +
+              (deferred ? 5000 : Math.min(60000, 2000 * 2 ** attempts)),
+            conflict: error instanceof ApiError && error.status === 409,
             error: rejection
               ? error.message
-              : "No server acknowledgement received. Saved locally; retry when connected.",
+              : deferred
+                ? error.message
+                : attempts >= 5
+                  ? "Automatic retries paused after five attempts. Review connectivity, then send pending reports to retry."
+                  : "No server acknowledgement received. Saved locally; automatic retry scheduled.",
           });
           blocked.add(entry.missionId);
           if (!rejection) break;
@@ -275,4 +309,31 @@ export async function sendPending(retryId?: string) {
       }
     },
   );
+}
+
+export async function reviewConflict(id: string): Promise<MissionDetail> {
+  const entry = await db.outbox.get(id);
+  if (!entry?.conflict)
+    throw new Error("This report has no version conflict to review.");
+  return network<MissionDetail>("missions/" + entry.missionId);
+}
+export async function resolveConflict(id: string, reviewedVersion: number) {
+  await navigator.locks.request("polaris-report-delivery", async () => {
+    const entry = await db.outbox.get(id);
+    if (!entry?.conflict || entry.state !== "failed")
+      throw new Error("Report state changed; review it again.");
+    await db.outbox.update(id, {
+      body: { ...entry.body, version: reviewedVersion },
+      state: "pending",
+      attempts: 0,
+      retryAt: 0,
+      conflict: false,
+      error: undefined,
+      resolution:
+        "Operator reviewed server version " +
+        reviewedVersion +
+        " and requested append. Original observation retained in reports.",
+    });
+  });
+  await sendPending();
 }

@@ -1,6 +1,17 @@
+import { network } from "./transport";
+import { configureLink, linkSettings } from "./connectivity";
+import type { Profile } from "./connectivity";
+import type { MissionDetail } from "./api";
 import { useEffect, useState } from "react";
 import { liveQuery } from "dexie";
-import { db, prepareOffline, sendPending, STORE_ERROR } from "./localStore";
+import {
+  db,
+  prepareOffline,
+  sendPending,
+  STORE_ERROR,
+  reviewConflict,
+  resolveConflict,
+} from "./localStore";
 import { useDeliveries } from "./useDeliveries";
 import { utc } from "./api";
 
@@ -45,6 +56,28 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
   const [prepared, setPrepared] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState(linkSettings);
+  const [review, setReview] = useState<{
+    id: string;
+    mission: MissionDetail;
+  } | null>(null);
+  useEffect(() => {
+    const update = () => setLink(linkSettings());
+    const deliver = () => {
+      void sendPending(undefined, true).catch(() => setError(STORE_ERROR));
+    };
+    const timer = setInterval(deliver, 5000);
+    window.addEventListener("polaris-link", update);
+    window.addEventListener("storage", update);
+    window.addEventListener("online", deliver);
+    deliver();
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("polaris-link", update);
+      window.removeEventListener("storage", update);
+      window.removeEventListener("online", deliver);
+    };
+  }, []);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     const read = (event: Event) => {
@@ -123,6 +156,80 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
         the last server assessment, which may be stale.
       </p>
       <div className="actions">
+        <label>
+          Connection profile{" "}
+          <select
+            aria-label="Connection profile"
+            value={link.profile}
+            onChange={(e) =>
+              configureLink(e.target.value as Profile, link.failures)
+            }
+          >
+            <option value="broadband">Broadband</option>
+            <option value="constrained">Constrained</option>
+            <option value="offline">Offline</option>
+          </select>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={link.failures}
+            onChange={(e) => configureLink(link.profile, e.target.checked)}
+          />{" "}
+          Simulate request failures
+        </label>
+        <button
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              await network("health");
+              setError("Server is reachable using the selected profile.");
+            })
+          }
+        >
+          Check server connection
+        </button>
+      </div>
+      <p className="muted">
+        Simulator: constrained adds 800 ms per request and limits outgoing JSON
+        to 2,048 bytes per minute. Responses and map downloads are excluded.
+        Automatic delivery runs every five seconds while this app is open, with
+        up to five attempts and increasing delays. Safety check-ins precede
+        location reports.
+      </p>
+      {review && (
+        <section
+          className="local-reports"
+          aria-label="Review conflicting report"
+        >
+          <h3>Review server version {review.mission.version}</h3>
+          <p>
+            {review.mission.code}: {review.mission.status}. Last contact:{" "}
+            {review.mission.last_contact_at
+              ? utc(review.mission.last_contact_at)
+              : "None"}
+            . Latest check-in: {review.mission.check_ins[0]?.note ?? "None"}.
+          </p>
+          <p>
+            Your original report remains saved. Append it using this reviewed
+            version; its original observation time will be preserved. A further
+            server change will require another review.
+          </p>
+          <button
+            disabled={busy || review.mission.status !== "in_field"}
+            onClick={() =>
+              run(async () => {
+                await resolveConflict(review.id, review.mission.version);
+                setReview(null);
+              })
+            }
+          >
+            Append report to reviewed version
+          </button>
+          <button onClick={() => setReview(null)}>Cancel review</button>
+        </section>
+      )}
+      <div className="actions">
         <button disabled={busy || !online} onClick={() => run(prepareOffline)}>
           Save mission pack
         </button>
@@ -170,6 +277,22 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
                     : "Saved locally " + utc(item.createdAt)}
                 </small>
                 {item.error && <p>{item.error}</p>}
+                {item.resolution && <small>{item.resolution}</small>}
+                {item.conflict && (
+                  <button
+                    disabled={busy || !online}
+                    onClick={() =>
+                      run(async () =>
+                        setReview({
+                          id: item.id,
+                          mission: await reviewConflict(item.id),
+                        }),
+                      )
+                    }
+                  >
+                    Review server conflict
+                  </button>
+                )}
                 {item.state === "failed" && (
                   <button
                     disabled={busy || !online}
