@@ -32,6 +32,8 @@ Completion: a fresh checkout can start the application, reach the API and load s
 
 ## Phase 2 — Personnel and mission accountability
 
+Status: implemented and locally verified; PostgreSQL execution remains a CI/environment check.
+
 Deliverables:
 - Create a mission with personnel, vehicle, destination, departure, expected check-in and expected return.
 - Record check-ins and positions with source, observed time and received time.
@@ -110,4 +112,4 @@ Completion: authorized stakeholders accept measured reliability and security res
 
 ## Immediate next task
 
-Start Phase 2: mission creation and updates, field check-ins, position recording, overdue rules and mission completion.
+Start Phase 3: cache the application shell and add persistent local mission storage and an outgoing event queue.

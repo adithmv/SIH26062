@@ -388,3 +388,163 @@ footer {
     display: none;
   }
 }
+.form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #365363;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c8d8df;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font: inherit;
+  background: white;
+  color: #172e3c;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #267d77;
+  outline-offset: 2px;
+}
+textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+input:disabled,
+select:disabled {
+  background: #eef2f4;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 20px 0;
+}
+.primary {
+  background: #236c67;
+  border-color: #236c67;
+  color: white;
+}
+.primary:hover {
+  background: #185953;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.team-picker {
+  border: 1px solid #dce5e9;
+  border-radius: 7px;
+  padding: 16px;
+  margin: 20px 0;
+}
+.team-picker legend {
+  font-size: 13px;
+  padding: 0 8px;
+}
+.check-label {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 10px 0;
+  gap: 10px;
+}
+.check-label input {
+  width: 17px;
+  height: 17px;
+}
+.form-error {
+  color: #962c24;
+  background: #fff0ec;
+  border-radius: 6px;
+  padding: 13px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.action-form {
+  border: 1px solid #cbdedc;
+  background: #f5f9f8;
+  border-radius: 8px;
+  padding: 22px;
+  margin: 20px 0;
+}
+.attention {
+  border-left: 3px solid #ba8229;
+  background: #fff7e8;
+  padding: 17px;
+  color: #765319;
+  margin: 20px 0;
+}
+.attention p {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.status.normal,
+.status.completed,
+.status.at_station {
+  background: #e8f4ef;
+  color: #286b53;
+}
+.status.check_in_due {
+  background: #fff5d8;
+  color: #76581a;
+}
+.status.contact_overdue,
+.status.return_overdue,
+.status.escalation {
+  background: #fff0e1;
+  color: #954a1f;
+}
+.status.emergency {
+  background: #fce4e2;
+  color: #962c24;
+}
+.position-map {
+  height: 300px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #dce5e9;
+  margin-top: 15px;
+}
+.check-in {
+  padding: 16px 0;
+  border-bottom: 1px solid #e4ebef;
+}
+.check-in p {
+  margin-bottom: 8px;
+}
+@media (max-width: 700px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .section-heading {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .page-heading {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .position-map {
+    height: 240px;
+  }
+}

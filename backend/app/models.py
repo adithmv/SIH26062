@@ -39,6 +39,12 @@ class Mission(Base):
     expected_check_in: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expected_return: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(default=1)
+    check_in_interval_minutes: Mapped[int] = mapped_column(default=60, server_default="60")
+    overdue_grace_minutes: Mapped[int] = mapped_column(default=15, server_default="15")
+    escalation_level: Mapped[str] = mapped_column(String(30), default="none", server_default="none")
+    escalation_reason: Mapped[str | None] = mapped_column(String(500))
+    actual_departure: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Assignment(Base):

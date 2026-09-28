@@ -1,55 +1,76 @@
-# Phase 1 API and data contracts
+# Phase 2 API and operational rules
 
-Base path: `/api`. All Phase 1 endpoints are read-only and unauthenticated for local fictional demonstration use. The frontend uses a same-origin development proxy.
+Base path: /api. This prototype is unauthenticated and intended for local fictional demonstrations. Interactive schemas are at /docs. Offline writes, synchronization and emergency dispatch are not implemented.
 
 ## Endpoints
 
-| Method | Path | Response |
+| Method | Path (after /api) | Purpose |
 | --- | --- | --- |
-| GET | /api/health | Status and API version; 503 if database connectivity fails |
-| GET | /api/missions | Mission array ordered by code |
-| GET | /api/missions/{id} | Mission plus personnel, vehicle, last_position and check_ins |
-| GET | /api/personnel | Personnel array ordered by name |
-| GET | /api/vehicles | Vehicle array ordered by code |
-| GET | /api/events | At most 100 events, newest occurrence first |
+| GET | /health | Database connectivity and version |
+| GET | /missions | Plans plus calculated contact/return status |
+| GET | /missions/{id} | Team, vehicle, position, age and check-ins |
+| POST | /missions | Create a planned mission (201) |
+| PUT | /missions/{id} | Replace editable mission plan |
+| POST | /missions/{id}/depart | Record actual departure |
+| POST | /missions/{id}/check-ins | Append check-in (201) |
+| POST | /missions/{id}/positions | Append position (201) |
+| POST | /missions/{id}/escalation | Operator escalation, emergency or clearance |
+| POST | /missions/{id}/complete | Confirm team return |
+| GET | /personnel | People and actual active mission |
+| GET | /vehicles | Registered vehicles |
+| GET | /events | Latest 100 audit events by receipt |
 
-Unknown mission IDs return 404; malformed UUIDs return 422. Errors use FastAPI's `detail` field. An empty collection is `[]`; no recorded position is `null`. Health checks database connectivity, not migration completeness.
+Missing IDs return 404, invalid inputs 422, and version/resource/code conflicts 409. Errors use the detail field. Collections may be empty; absent positions/contact times are null.
 
-## Shared rules
+## Mission plan
 
-- IDs are UUID strings. Demo seeds use deterministic UUIDv5 identifiers; future records default to UUIDv4.
-- Timestamps serialize as ISO 8601 UTC with an explicit offset.
-- `observed_at` / `occurred_at` identify the field observation; `received_at` identifies receipt by the server.
-- Mission timestamps: `departure`, `expected_check_in`, `expected_return`.
-- Newest confirmed position is selected by observation time, not arrival time.
-- There are no write or sync endpoints yet. Event storage does not imply delivery acknowledgement or a working sync engine.
+Creation requires code, name, destination, station (return station), vehicle_id, personnel_ids, departure, expected_check_in and expected_return. Optional check_in_interval_minutes defaults to 60 (range 1–1440); overdue_grace_minutes defaults to 15 (range 0–240). PUT requires the same plan fields plus the current integer version.
 
-## Entities
+All IDs are UUIDs. Teams cannot be empty or contain duplicates. First check-in must fall between departure and return, and return must follow departure. Times must include a timezone offset; they are normalized to UTC.
 
-| Entity | Fields and relationships |
-| --- | --- |
-| Personnel | id, name, role, station |
-| Vehicle | id, unique code, kind |
-| Mission | id, unique code, name, destination, station, status, vehicle_id, departure, expected_check_in, expected_return, version |
-| Assignment | composite key (mission_id, personnel_id), both foreign keys |
-| Position | id, mission_id, latitude [-90,90], longitude [-180,180], source, observed_at, received_at |
-| CheckIn | id, mission_id, source, note, observed_at, received_at |
-| Event | id, mission_id, device_id, sequence, kind, priority [0,4], occurred_at, received_at, payload |
+Overlapping planned/in-field missions cannot share a person or vehicle. Departure also rejects resources still in the field even after their expected return. PostgreSQL resource locks serialize competing reservations. SQLite is a single-machine demonstration adapter; multi-client concurrency requires PostgreSQL validation.
 
-Mission detail includes `personnel: Personnel[]`, `vehicle: Vehicle`, `last_position: Position | null`, and `check_ins: CheckIn[]`.
+Lifecycle: planned → in_field → completed. Departure requires future check-in and return deadlines and records actual_departure using server UTC. Active team, vehicle and planned departure are immutable; other plan fields remain editable. Completed missions are read-only.
 
-Mission return must follow departure; expected check-in cannot precede departure. Device ID and sequence are unique together. Events reference their mission; JSON payloads carry a schema_version for future evolution. Demo event payloads reference the associated check-in ID.
+## Contact and return status
 
-The initial fixture statuses are `planned` and `in_field`. Status transitions and conflict rules are intentionally deferred to their roadmap phases.
+Evaluated at read time using server UTC. The interface polls every 30 seconds and displays evaluated_at.
 
-## Migration workflow
+- next_check_in = max(first expected check-in, latest check-in observation + interval), capped at expected return.
+- Before deadline: normal.
+- At deadline: check_in_due.
+- At deadline + grace: contact_overdue; zero grace moves directly to overdue.
+- At expected return: return_overdue becomes true until completion.
+- Position reports update last contact/location but do not satisfy an explicit scheduled check-in.
+- Delayed observations remain in history without moving the latest location or check-in deadline backward.
+- Operator escalation/emergency overrides the headline status; underlying contact and return flags remain visible.
+- New contact never silently clears an operator decision.
+- Planned and completed missions are not automatically overdue.
 
-From backend, with the virtual environment active:
+These are configurable prototype rules, not approved expedition safety procedures.
 
-```text
-alembic revision --autogenerate -m descriptive_change
-alembic upgrade head
-alembic check
-```
+## Observations
 
-Review generated migrations before applying them. Initial migrations explicitly define their tables; they do not import evolving application models. Production migration scheduling and deployment are outside Phase 1.
+Check-ins accept version, observed_at, source, note. Positions accept version, observed_at, source, latitude and longitude. Sources: manual, radio, gnss, simulated_gnss, simulated_radio.
+
+Observation time cannot be in the future or before actual departure (planned departure for the historic seeded in-field mission). The server assigns a separate received_at timestamp. Coordinates must be finite, latitude between -90 and 90, longitude between -180 and 180.
+
+The latest position is selected by observation time, not receipt time. Detail includes position_age_minutes and position_stale; age reaching the configured check-in interval is stale. Missing positions are unknown/stale.
+
+MapLibre's raster basemap requires internet and WebGL. Coordinates, source and times remain available without imagery. Mercator cannot accurately display the poles beyond approximately 85 degrees latitude. No route is inferred.
+
+## Operator decisions and return
+
+Escalation accepts version, level (none/escalation/emergency) and reason. Clearing also requires a reason. This only records an operator decision; it does not dispatch responders or transmit an SOS.
+
+Completion accepts version and note. The interface requires confirmation that all personnel returned. Completion records the server time, clears active escalation, updates personnel to the return station and releases active resource accountability. Assignment, check-in, position and event history remains.
+
+## Concurrency and audit
+
+Each existing-mission mutation requires its current version. An atomic conditional update increments it. Stale submissions return 409 without partial changes. Refresh and reopen a form after conflict; background polling does not silently replace the version captured by an open form.
+
+Mutation and audit event commit together. Events use stable UUIDs, device_id = server:<mission UUID>, and sequence = mission version. Seeded events retain their IDs. This is an audit foundation, not yet an offline sync protocol or tamper-proof ledger.
+
+## Upgrade
+
+Run alembic upgrade head from backend before starting the API. Migration 911a743ebba4 adds policy, escalation, actual departure and completion fields with defaults that preserve existing rows. Run alembic check to compare model and migration state.

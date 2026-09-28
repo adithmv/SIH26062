@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { get, utc } from "./api";
+import { get, statusLabel, utc } from "./api";
 import type { Mission, MissionDetail, Person, Vehicle } from "./api";
+import MissionForm from "./MissionForm";
+import MissionWorkspace from "./MissionWorkspace";
 import "./App.css";
 const pages = ["Overview", "Missions", "Personnel", "Vehicles"] as const;
 type Page = (typeof pages)[number];
@@ -12,10 +14,15 @@ export default function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<MissionDetail | null>(null);
+  const [form, setForm] = useState<"create" | "edit" | null>(null);
   const [error, setError] = useState("");
   const [detailError, setDetailError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [retry, setRetry] = useState(0);
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setRevision((v) => v + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
@@ -27,6 +34,7 @@ export default function App() {
         setMissions(m);
         setPeople(p);
         setVehicles(v);
+        setError("");
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -35,28 +43,41 @@ export default function App() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retry]);
+  }, [revision]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
     get<MissionDetail>("missions/" + selected, controller.signal)
-      .then(setDetail)
+      .then((d) => {
+        setDetail(d);
+        setDetailError("");
+      })
       .catch((e) => {
         if (!controller.signal.aborted) setDetailError(e.message);
       });
     return () => controller.abort();
-  }, [selected]);
+  }, [selected, revision]);
+  function open(id: string) {
+    setSelected(id);
+    setDetail(null);
+    setDetailError("");
+    setForm(null);
+  }
+  function saved(m: MissionDetail) {
+    setDetail(m);
+    setSelected(m.id);
+    setForm(null);
+    setRevision((v) => v + 1);
+  }
+  function navigate(p: Page) {
+    setPage(p);
+    setSelected(null);
+    setForm(null);
+  }
   return (
     <div className="shell">
       <aside>
-        <a
-          className="brand"
-          href="#"
-          onClick={() => {
-            setPage("Overview");
-            setSelected(null);
-          }}
-        >
+        <a className="brand" href="#" onClick={() => navigate("Overview")}>
           <span className="brand-mark">△</span>
           <span>
             POLARIS<small>EXPEDITION OPERATIONS</small>
@@ -69,10 +90,7 @@ export default function App() {
               key={p}
               className={page === p ? "active" : ""}
               aria-current={page === p ? "page" : undefined}
-              onClick={() => {
-                setPage(p);
-                setSelected(null);
-              }}
+              onClick={() => navigate(p)}
             >
               <span aria-hidden="true">{["◈", "↗", "◎", "▱"][i]}</span>
               {p}
@@ -80,7 +98,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-note">
-          ● DEVELOPMENT BUILD<p>Phase 01 / Foundation</p>
+          ● DEVELOPMENT BUILD<p>Phase 02 / Accountability</p>
           <small>
             Fictional expedition data.
             <br />
@@ -90,131 +108,100 @@ export default function App() {
       </aside>
       <main>
         <header>
-          <span>Maitri station / Operations workspace</span>
+          <span>Expedition / Operations workspace</span>
           <span className="badge">DEMO ENVIRONMENT</span>
         </header>
         <div className="page-heading">
           <div>
             <p className="eyebrow">ANTARCTIC FIELD OPERATIONS</p>
             <h1>
-              {selected
-                ? "Mission briefing"
-                : page === "Overview"
-                  ? "Expedition overview"
-                  : page}
+              {form === "create"
+                ? "Plan a field mission"
+                : selected
+                  ? "Mission briefing"
+                  : page === "Overview"
+                    ? "Expedition overview"
+                    : page}
             </h1>
             <p className="muted">
               A shared picture of your people, missions and field resources.
             </p>
           </div>
-          <span className="date">
-            28 SEP 2026
-            <br />
-            <small>Fixed demonstration snapshot</small>
-          </span>
+          <button onClick={() => setRevision((v) => v + 1)}>
+            Refresh records
+          </button>
         </div>
         <div className="notice">
-          ⓘ All names, missions and positions are fictional. Statuses are
-          seeded; overdue detection arrives in Phase 2.
+          ⓘ Fictional demo records. Contact status uses the server's current
+          time; old demo missions may be overdue. No live tracking or emergency
+          dispatch is connected.
         </div>
+        {error && (
+          <div role="alert" className="panel error">
+            {error} Previously loaded records may be stale.
+            <button onClick={() => setRevision((v) => v + 1)}>Try again</button>
+          </div>
+        )}
         {loading ? (
           <p role="status" className="panel">
             Loading expedition records…
           </p>
-        ) : error ? (
-          <div role="alert" className="panel error">
-            {error}
-            <button
-              onClick={() => {
-                setLoading(true);
-                setError("");
-                setRetry(retry + 1);
-              }}
-            >
-              Try again
-            </button>
-          </div>
+        ) : form ? (
+          <MissionForm
+            key={form + (detail?.id ?? "")}
+            initial={form === "edit" && detail ? detail : undefined}
+            people={people}
+            vehicles={vehicles}
+            onSaved={saved}
+            onCancel={() => setForm(null)}
+          />
         ) : selected ? (
-          <section className="panel">
-            <button className="back" onClick={() => setSelected(null)}>
-              ← Back to missions
-            </button>
-            {detailError ? (
-              <p role="alert">{detailError}</p>
-            ) : !detail ? (
-              <p role="status">Loading mission…</p>
-            ) : (
-              <>
-                <p className="eyebrow">
-                  {detail.code} / {detail.station}
-                </p>
-                <h2>{detail.name}</h2>
-                <div className="detail-grid">
-                  <div>
-                    <h3>Mission plan</h3>
-                    <p>Destination: {detail.destination}</p>
-                    <p>Departure: {utc(detail.departure)}</p>
-                    <p>Check-in expected: {utc(detail.expected_check_in)}</p>
-                    <p>Return expected: {utc(detail.expected_return)}</p>
-                    <p>Vehicle: {detail.vehicle.code}</p>
-                  </div>
-                  <div>
-                    <h3>Assigned personnel</h3>
-                    {detail.personnel.map((p) => (
-                      <p key={p.id}>
-                        {p.name} <span className="muted">/ {p.role}</span>
-                      </p>
-                    ))}
-                    <h3>Last confirmed position</h3>
-                    {detail.last_position ? (
-                      <>
-                        <p>
-                          {detail.last_position.latitude.toFixed(4)}°,{" "}
-                          {detail.last_position.longitude.toFixed(4)}°
-                        </p>
-                        <p className="muted">
-                          {utc(detail.last_position.observed_at)}
-                          <br />
-                          {detail.last_position.source}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="muted">No position recorded</p>
-                    )}
-                  </div>
-                </div>
-                <h3>Recorded check-ins</h3>
-                {detail.check_ins.length ? (
-                  detail.check_ins.map((c) => (
-                    <p key={c.id}>
-                      {c.note}
-                      <br />
-                      <small className="muted">
-                        {utc(c.observed_at)} / {c.source}
-                      </small>
-                    </p>
-                  ))
-                ) : (
-                  <p>No check-ins recorded</p>
-                )}
-              </>
+          <>
+            {detailError && (
+              <p className="form-error" role="alert">
+                {detailError} Displayed details may be stale.
+              </p>
             )}
-          </section>
+            {detail ? (
+              <MissionWorkspace
+                key={detail.id}
+                mission={detail}
+                onSaved={saved}
+                onEdit={() => setForm("edit")}
+                onBack={() => setSelected(null)}
+              />
+            ) : (
+              <p role="status" className="panel">
+                {detailError
+                  ? "Use Refresh records to retry."
+                  : "Loading mission…"}
+              </p>
+            )}
+          </>
         ) : (
           <>
             {page === "Overview" && (
               <div className="stats">
                 {[
-                  ["Personnel", people.length, "Assigned expedition members"],
+                  [
+                    "Personnel",
+                    people.length,
+                    people.filter((p) => p.active_mission_id).length +
+                      " currently in the field",
+                  ],
                   [
                     "Field missions",
                     missions.filter((m) => m.status === "in_field").length,
-                    "Seeded in-field status",
+                    "Departed and not yet returned",
                   ],
                   [
-                    "Planned missions",
-                    missions.filter((m) => m.status === "planned").length,
-                    "Preparing for departure",
+                    "Needs attention",
+                    missions.filter(
+                      (m) =>
+                        m.status === "in_field" &&
+                        m.operational_status !== "normal",
+                    ).length,
+                    "Due, overdue or escalated",
                   ],
                   ["Vehicles", vehicles.length, "Registered field resources"],
                 ].map(([label, value, description]) => (
@@ -235,13 +222,12 @@ export default function App() {
                       Mission plans and last confirmed field information.
                     </p>
                   </div>
-                  <span className="count">{missions.length} missions</span>
+                  <button className="primary" onClick={() => setForm("create")}>
+                    New mission
+                  </button>
                 </div>
-                {missions.length === 0 ? (
-                  <p>
-                    No missions yet. Load the demonstration fixtures to get
-                    started.
-                  </p>
+                {!missions.length ? (
+                  <p>No missions recorded.</p>
                 ) : (
                   <div className="table-wrap">
                     <table>
@@ -265,19 +251,21 @@ export default function App() {
                             </td>
                             <td>{m.destination}</td>
                             <td>
-                              <span className={"status " + m.status}>
-                                {m.status.replaceAll("_", " ")}
+                              <span
+                                className={"status " + m.operational_status}
+                              >
+                                {statusLabel(m.operational_status)}
                               </span>
+                              {m.return_overdue &&
+                                m.operational_status !== "return_overdue" && (
+                                  <small>Return overdue</small>
+                                )}
                             </td>
                             <td>{utc(m.expected_return)}</td>
                             <td>
                               <button
                                 aria-label={"View " + m.code}
-                                onClick={() => {
-                                  setDetail(null);
-                                  setDetailError("");
-                                  setSelected(m.id);
-                                }}
+                                onClick={() => open(m.id)}
                               >
                                 View ↗
                               </button>
@@ -304,7 +292,18 @@ export default function App() {
                       </span>
                       <h3>{p.name}</h3>
                       <p>{p.role}</p>
-                      <small className="muted">Home station: {p.station}</small>
+                      <p>
+                        <span className={"status " + p.operational_status}>
+                          {statusLabel(p.operational_status)}
+                        </span>
+                      </p>
+                      {p.active_mission_id ? (
+                        <button onClick={() => open(p.active_mission_id!)}>
+                          Open {p.active_mission_code}
+                        </button>
+                      ) : (
+                        <small className="muted">At station: {p.station}</small>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -320,27 +319,26 @@ export default function App() {
                       <p className="eyebrow">VEHICLE</p>
                       <h3>{v.code}</h3>
                       <p>{v.kind}</p>
+                      {missions
+                        .filter(
+                          (m) =>
+                            m.vehicle_id === v.id && m.status === "in_field",
+                        )
+                        .map((m) => (
+                          <button key={m.id} onClick={() => open(m.id)}>
+                            In field · {m.code}
+                          </button>
+                        ))}
                     </article>
                   ))}
                 </div>
                 {!vehicles.length && <p>No vehicles recorded.</p>}
               </section>
             )}
-            {page === "Overview" && (
-              <section className="next-panel">
-                <span>01 / FOUNDATION</span>
-                <h2>Built for the journey ahead.</h2>
-                <p>
-                  Mission records are connected. Offline capture, priority
-                  delivery and communication simulation will follow in the next
-                  phases.
-                </p>
-              </section>
-            )}
           </>
         )}
         <footer>
-          SIH26062{" "}
+          SIH26062
           <span>
             Mission continuity starts with a reliable operational picture.
           </span>
