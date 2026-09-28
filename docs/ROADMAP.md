@@ -8,7 +8,7 @@ Phases are ordered by dependency. Complete the prototype through Phase 6 before 
 
 ## Phase 0 — Scope and repository
 
-Status: initial documentation prepared.
+Status: complete; initial documentation committed and pushed.
 
 Deliverables:
 - Repository, project overview and this roadmap.
@@ -18,6 +18,8 @@ Deliverables:
 Completion: initial documentation committed and pushed to GitHub.
 
 ## Phase 1 — Application foundation
+
+Status: implemented; see README for setup and verification.
 
 Deliverables:
 - Frontend and backend scaffolds, PostgreSQL migrations and local Docker Compose configuration.
@@ -108,4 +110,4 @@ Completion: authorized stakeholders accept measured reliability and security res
 
 ## Immediate next task
 
-Start Phase 1: scaffold the web application and API, define the initial mission data model, and provide a reproducible local development environment.
+Start Phase 2: mission creation and updates, field check-ins, position recording, overdue rules and mission completion.

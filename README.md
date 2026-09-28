@@ -1,49 +1,94 @@
 # SIH26062
 
-A prototype expedition operations platform for polar missions, centered on a **Connectivity-Aware Mission Continuity Engine**.
+A polar expedition operations prototype centered on a **Connectivity-Aware Mission Continuity Engine**. The current interface uses the working name **Polaris**.
 
-The platform will connect personnel, field missions, vehicles, cargo and scientific assets while maintaining local operation through connectivity changes.
+## Status
 
-## Project status
+Phase 1 foundation implemented: React navigation, read-only mission briefings, FastAPI, seven related database models, Alembic migrations, deterministic fictional fixtures, Docker Compose and CI checks.
 
-Planning and initial repository setup. Application implementation has not started. The capabilities below are planned, not implemented.
+Offline capture, mission editing, overdue rules, maps and priority synchronization are future phases. No satellite or live tracking hardware is connected.
 
-## Prototype scope
+## Start with Docker (recommended)
 
-- Personnel and field mission accountability: team assignments, destinations, last confirmed positions, check-ins and expected returns.
-- Local-first recording with visible pending and acknowledged delivery states.
-- Prioritized synchronization across broadband, constrained and disconnected conditions.
-- Related vehicles, cargo and equipment for operational context.
-- A reproducible demonstration of connection loss, overdue contact and recovery.
+Install Docker Desktop with its Linux engine running. From the repository root:
 
-## Planned stack
+```powershell
+Copy-Item .env.example .env
+docker compose up --build -d
+```
 
-| Component | Technology |
-| --- | --- |
-| Web application | React, TypeScript, Vite |
-| Interface | Tailwind CSS, shadcn/ui |
-| Offline application shell | PWA and service worker |
-| Device storage | Dexie and IndexedDB |
-| API and mission rules | Python and FastAPI |
-| Central storage | PostgreSQL |
-| Maps | MapLibre GL JS with locally available demo map assets |
-| Synchronization | Custom client queue and server acknowledgement logic |
-| Verification | Vitest, pytest, Playwright |
-| Local demo environment | Docker Compose |
+Open [the application](http://localhost:5173) and [interactive API documentation](http://localhost:8000/docs).
+Startup waits for PostgreSQL, applies migrations and loads additive demo fixtures before starting the web interface.
 
-## Development phases
+- Web: http://localhost:5173
+- API health: http://localhost:8000/api/health
+- OpenAPI: http://localhost:8000/openapi.json
+- Logs: `docker compose logs -f`
+- Stop while retaining data: `docker compose down`
 
-See [the development roadmap](docs/ROADMAP.md) for deliverables and completion criteria, from foundation through prototype demonstration and production hardening.
+Ports bind to your local machine. The supplied credentials are public local-demo defaults, not production secrets. Do not use real personnel data or expose this unauthenticated development stack publicly. URL-encode special characters if changing the password used in the database connection URL.
 
-## Design boundaries
+## Run without Docker
 
-- Location means **last confirmed position**, with its source and timestamp; it is not a guarantee of current position.
-- No communication link means no remote delivery, including SOS. Pending and delivered states must remain distinct.
-- A missed check-in indicates overdue contact, not automatically a missing person or emergency.
-- The prototype will simulate communication profiles; it will not claim actual satellite integration.
-- Browser storage and background execution have limitations. This prototype is not a certified emergency communication system.
-- Research claims about existing NCPOR systems require primary-source verification before publication.
+Requires Node.js 22.12+ and Python 3.12–3.14. This path uses a local SQLite demo database, not PostgreSQL.
 
-## Getting started
+Backend, from a PowerShell terminal:
 
-There is no runnable application yet. Setup instructions will be added with the application scaffold in Phase 1.
+```powershell
+cd backend
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m app.seed
+.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Frontend, from a second terminal at the repository root:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+On macOS/Linux, use `.venv/bin/python` instead. Set `DATABASE_URL` in the backend terminal to use an existing PostgreSQL database. The frontend development proxy forwards `/api` to port 8000; override `API_PROXY_TARGET` if needed. The backend does not automatically read a .env file; Compose reads the root .env.
+
+## Verification
+
+```powershell
+cd backend
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/python -m alembic check
+cd ../frontend
+npm run build
+npm run lint
+npx playwright install chromium
+npx playwright test
+```
+
+Browser tests require the seeded API running on port 8000 and start Vite automatically. Backend tests use an isolated temporary SQLite database by default. Set `TEST_DATABASE_URL` **only to a disposable test database** for PostgreSQL tests: the suite applies and rolls back its schema. CI runs those tests against PostgreSQL 17.
+
+## Repository
+
+- `frontend/`: React, TypeScript, Vite and Tailwind interface.
+- `backend/app/`: FastAPI, SQLAlchemy models and fictional fixtures.
+- `backend/migrations/`: versioned schema changes.
+- `compose.yaml`: local PostgreSQL, API and web services.
+- [API and data contracts](docs/API.md).
+- [Development phases](docs/ROADMAP.md).
+
+## Demonstration data
+
+Fixed snapshot: **28 September 2026**. Four fictional people, two missions, two vehicles, one simulated position, one radio check-in and one event. Names do not represent actual expedition members. Seed identifiers are deterministic UUIDs; running the seed again does not overwrite existing records.
+
+Locations are last confirmed observations, never guaranteed current positions. Observation and receipt times are separate UTC values. Mission statuses in this phase are stored fixtures, not calculated safety assessments.
+
+## Next milestone
+
+Phase 2: mission creation and updates, field check-ins, position recording, overdue rules and mission completion.
+
+## Phase 1 verification record
+
+Verified locally: backend tests (3 passed), migration/model consistency, frontend build and lint, Edge browser smoke tests (3 passed), dashboard screenshot review, live API/proxy requests, and Compose configuration validation. Full Docker/PostgreSQL startup was not verified because the local Docker engine was unavailable. CI is configured to exercise PostgreSQL but its result must be checked on GitHub.
+
+If downloaded Chromium cannot launch on Windows, run browser tests with `$env:PLAYWRIGHT_CHANNEL="msedge"` to use installed Edge.
