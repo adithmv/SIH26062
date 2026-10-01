@@ -93,3 +93,31 @@ class Event(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict] = mapped_column(JSON)
+
+
+class PMCEOutbox(Base):
+    __tablename__ = "pmce_outbox"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    event: Mapped[dict] = mapped_column(JSON)
+    priority: Mapped[int]
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(default=0)
+    last_error: Mapped[str | None] = mapped_column(String(250))
+    failures: Mapped[int] = mapped_column(default=0, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    blocked: Mapped[bool] = mapped_column(default=False, server_default="false")
+
+
+class PMCEReceipt(Base):
+    __tablename__ = "pmce_receipts"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    event: Mapped[dict] = mapped_column(JSON)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PMCESyncLock(Base):
+    __tablename__ = "pmce_sync_lock"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[UUID | None] = mapped_column()
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

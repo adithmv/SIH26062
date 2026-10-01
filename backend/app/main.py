@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .db import get_session
 from .models import Assignment, CheckIn, Event, Mission, Personnel, Position, Vehicle
+from .pmce import router as pmce_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
                          require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
@@ -16,6 +17,8 @@ from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, 
                       PositionInput, VehicleOut, VersionInput)
 
 app = FastAPI(title="SIH26062 Mission Operations", version="0.3.0")
+
+app.include_router(pmce_router)
 
 
 @app.exception_handler(IntegrityError)
