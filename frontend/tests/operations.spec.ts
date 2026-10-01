@@ -38,6 +38,7 @@ test("plans, departs, reports, escalates and returns a field team", async ({
     .getByLabel("Mission name", { exact: true })
     .fill("Browser workflow expedition");
   await page.getByLabel("Destination", { exact: true }).fill("South ridge");
+  await page.getByLabel("Return station", { exact: true }).fill(detail.station);
   await page
     .getByLabel("Vehicle", { exact: true })
     .selectOption(detail.vehicle_id);

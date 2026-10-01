@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.main import app
 from app.models import Event, Mission
 from app.operations import now_utc
-from app.seed import uid
+from tests.fixtures_data import uid
 
 
 @pytest.fixture

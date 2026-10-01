@@ -8,7 +8,7 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./demo.sqlite3"))
+engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./operations.sqlite3"))
 
 
 def get_session():

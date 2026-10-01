@@ -101,9 +101,9 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-note">
-          ● DEVELOPMENT BUILD<p>Phase 04 / Connectivity</p>
+          ● DEVELOPMENT BUILD<p>Expedition operations</p>
           <small>
-            Fictional expedition data.
+            Operator-entered records.
             <br />
             No live tracking connected.
           </small>
@@ -112,7 +112,7 @@ export default function App() {
       <main>
         <header>
           <span>Expedition / Operations workspace</span>
-          <span className="badge">DEMO ENVIRONMENT</span>
+          <span className="badge">PROTOTYPE</span>
         </header>
         <div className="page-heading">
           <div>
@@ -135,9 +135,8 @@ export default function App() {
           </button>
         </div>
         <div className="notice">
-          ⓘ Fictional demo records. Contact status uses the server's current
-          time; old demo missions may be overdue. No live tracking or emergency
-          dispatch is connected.
+          ⓘ Contact status uses the server's current time. Positions show the
+          last recorded observation. No live tracking or emergency dispatch is connected.
         </div>
         <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
         {error && (

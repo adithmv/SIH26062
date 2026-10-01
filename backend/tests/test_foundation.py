@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Assignment, Event, Mission, Personnel, Position
-from app.seed import seed, uid
+from tests.fixtures_data import seed, uid
 
 
 def test_seed_is_repeatable_and_preserves_changes(database):

@@ -21,7 +21,7 @@ export default function MissionForm({
     code: initial?.code ?? "",
     name: initial?.name ?? "",
     destination: initial?.destination ?? "",
-    station: initial?.station ?? "Maitri",
+    station: initial?.station ?? "",
     vehicle_id: initial?.vehicle_id ?? vehicles[0]?.id ?? "",
     personnel_ids: initial?.personnel.map((p) => p.id) ?? ([] as string[]),
     departure: dateInput(initial?.departure ?? new Date().toISOString()),

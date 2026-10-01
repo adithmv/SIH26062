@@ -4,8 +4,8 @@ from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy.orm import Session
 
-from .db import engine
-from .models import Assignment, CheckIn, Event, Mission, Personnel, Position, Vehicle
+from app.db import engine
+from app.models import Assignment, CheckIn, Event, Mission, Personnel, Position, Vehicle
 
 
 def uid(key):
@@ -52,6 +52,9 @@ def seed(session):
 
 
 if __name__ == "__main__":
+    import os
+    if not os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL") != os.getenv("TEST_DATABASE_URL"):
+        raise SystemExit("Test fixture loading requires DATABASE_URL == TEST_DATABASE_URL in a disposable test environment.")
     with Session(engine) as session:
         seed(session)
     print("Fictional demo fixtures are ready.")

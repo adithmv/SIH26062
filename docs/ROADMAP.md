@@ -1,5 +1,11 @@
 # Development roadmap
 
+## Backend branch update
+
+The three backend work phases on `pmce-backend` are implemented: reliable PMCE delivery, mission event integration, and cargo/equipment/inventory. Fresh installations start empty; former demo fixtures are test-only. See `backend/README.md` and `docs/PMCE.md`.
+
+The milestones below describe the broader application roadmap. New backend APIs do not imply that corresponding frontend workflows or production-readiness work is complete. Large attachments and real communication/authentication integrations remain future work.
+
 ## Objective
 
 Demonstrate that an expedition can keep recording operational events locally, prioritize transmission when bandwidth is scarce, and reconcile its state when connectivity returns.

@@ -87,6 +87,8 @@ class VehicleOut(BaseModel):
     id: UUID
     code: str
     kind: str
+    condition: str = "unknown"
+    condition_at: datetime | None = None
 
 
 class MissionOut(BaseModel):

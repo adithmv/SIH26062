@@ -1,6 +1,6 @@
 # Phase 2 API and operational rules
 
-Base path: /api. This prototype is unauthenticated and intended for local fictional demonstrations. Interactive schemas are at /docs. The frontend can capture check-ins and positions offline and deliver them explicitly; priority synchronization and emergency dispatch are not implemented. See OFFLINE.md for delivery behavior.
+Base path: /api. Interactive schemas are at /docs. Fresh installations contain no records. The existing frontend captures check-ins and positions offline; the separate PMCE field service supports priority synchronization and operational ingestion. See PMCE.md for new backend APIs and OFFLINE.md for the existing browser delivery path. This prototype has no authentication or real emergency dispatch integration.
 
 ## Endpoints
 

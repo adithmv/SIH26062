@@ -15,10 +15,11 @@ def main():
     parser.add_argument("--mode", choices=["offline", "limited", "broadband"], default="offline")
     parser.add_argument("--interval", type=int, default=5)
     parser.add_argument("--byte-budget", type=int, default=2048)
+    parser.add_argument("--compression", action="store_true")
     args = parser.parse_args()
     if args.interval < 1:
         parser.error("--interval must be at least 1 second")
-    options = SyncOptions(mode=args.mode, byte_budget=args.byte_budget)
+    options = SyncOptions(mode=args.mode, byte_budget=args.byte_budget, compression=args.compression)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     try:
         while True:

@@ -95,7 +95,7 @@ def commit(session):
         session.commit()
     except IntegrityError:
         session.rollback()
-        raise HTTPException(409, "A mission code or record conflicts with an existing record.") from None
+        raise HTTPException(409, "An identifier or relationship conflicts with an existing record.") from None
 
 
 def resources(session, vehicle_id, personnel_ids, departure, expected_return, exclude=None, starting=False):

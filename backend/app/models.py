@@ -20,6 +20,8 @@ class Vehicle(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(40), unique=True)
     kind: Mapped[str] = mapped_column(String(80))
+    condition: Mapped[str] = mapped_column(String(30), default="unknown", server_default="unknown")
+    condition_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Mission(Base):
@@ -107,6 +109,9 @@ class PMCEOutbox(Base):
     failures: Mapped[int] = mapped_column(default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     blocked: Mapped[bool] = mapped_column(default=False, server_default="false")
+    superseded_by: Mapped[UUID | None] = mapped_column()
+    bytes_attempted: Mapped[int] = mapped_column(default=0, server_default="0")
+    bytes_acknowledged: Mapped[int] = mapped_column(default=0, server_default="0")
 
 
 class PMCEReceipt(Base):
@@ -121,3 +126,73 @@ class PMCESyncLock(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     owner: Mapped[UUID | None] = mapped_column()
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    mission_id: Mapped[UUID] = mapped_column(ForeignKey("missions.id"), index=True)
+    message: Mapped[str] = mapped_column(String(500))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[str | None] = mapped_column(String(120))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[str | None] = mapped_column(String(120))
+    resolution: Mapped[str | None] = mapped_column(String(500))
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(40), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    mission_id: Mapped[UUID | None] = mapped_column(ForeignKey("missions.id"), index=True)
+    condition: Mapped[str] = mapped_column(String(30), default="unknown")
+    condition_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+
+
+class Cargo(Base):
+    __tablename__ = "cargo"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(40), unique=True)
+    description: Mapped[str] = mapped_column(String(500))
+    mission_id: Mapped[UUID] = mapped_column(ForeignKey("missions.id"), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="registered")
+    location: Mapped[str] = mapped_column(String(120))
+    version: Mapped[int] = mapped_column(default=1)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class StockItem(Base):
+    __tablename__ = "stock_items"
+    __table_args__ = (CheckConstraint("quantity >= 0", name="nonnegative_stock"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    sku: Mapped[str] = mapped_column(String(40), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    station: Mapped[str] = mapped_column(String(80))
+    unit: Mapped[str] = mapped_column(String(30))
+    critical: Mapped[bool] = mapped_column(default=False)
+    quantity: Mapped[int] = mapped_column(default=0)
+    version: Mapped[int] = mapped_column(default=1)
+
+
+class MissionSupply(Base):
+    __tablename__ = "mission_supplies"
+    mission_id: Mapped[UUID] = mapped_column(ForeignKey("missions.id"), primary_key=True)
+    item_id: Mapped[UUID] = mapped_column(ForeignKey("stock_items.id"), primary_key=True)
+
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    item_id: Mapped[UUID] = mapped_column(ForeignKey("stock_items.id"), index=True)
+    mission_id: Mapped[UUID | None] = mapped_column(ForeignKey("missions.id"))
+    delta: Mapped[int]
+    balance: Mapped[int]
+    note: Mapped[str] = mapped_column(String(500))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    request: Mapped[dict] = mapped_column(JSON)

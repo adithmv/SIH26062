@@ -33,7 +33,7 @@ jobs:
         working-directory: backend
       - run: |
           alembic upgrade head
-          python -m app.seed
+          python -m tests.fixtures_data
           alembic check
           uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/sih-api.log 2>&1 &
         working-directory: backend

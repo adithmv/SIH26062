@@ -8,8 +8,9 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .db import get_session
-from .models import Assignment, CheckIn, Event, Mission, Personnel, Position, Vehicle
+from .models import Alert, Assignment, CheckIn, Event, Mission, MissionSupply, Personnel, Position, Vehicle
 from .pmce import router as pmce_router
+from .logistics import router as logistics_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
                          require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
@@ -19,11 +20,12 @@ from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, 
 app = FastAPI(title="SIH26062 Mission Operations", version="0.3.0")
 
 app.include_router(pmce_router)
+app.include_router(logistics_router)
 
 
 @app.exception_handler(IntegrityError)
 async def integrity_error(request, exc):
-    return JSONResponse(status_code=409, content={"detail": "Record conflicts with an existing mission code or assignment."})
+    return JSONResponse(status_code=409, content={"detail": "Record conflicts with an existing identifier or relationship."})
 
 
 @app.get("/api/health", response_model=HealthOut)
@@ -67,6 +69,8 @@ def edit_mission(mission_id: UUID, body: MissionEdit, session: Session = Depends
     claim_version(session, mission, body.version)
     if mission.status == "completed":
         raise HTTPException(409, "Completed missions are read-only.")
+    if body.station != mission.station and session.scalar(select(MissionSupply).where(MissionSupply.mission_id == mission_id).limit(1)):
+        raise HTTPException(409, "Cannot change station while supplies are linked to the mission.")
     current_people = set(session.scalars(select(Assignment.personnel_id).where(Assignment.mission_id == mission_id)))
     if mission.status == "in_field" and (set(body.personnel_ids) != current_people or body.vehicle_id != mission.vehicle_id or body.departure != utc(mission.departure)):
         raise HTTPException(409, "An active mission's team, vehicle and departure cannot be changed.")
@@ -132,6 +136,8 @@ def escalate(mission_id: UUID, body: EscalationInput, session: Session = Depends
     mission = require_mission(session, mission_id)
     claim_version(session, mission, body.version)
     require_field(mission)
+    if body.level != "emergency" and session.scalar(select(Alert).where(Alert.mission_id == mission_id, Alert.resolved_at.is_(None)).limit(1)):
+        raise HTTPException(409, "Resolve open SOS alerts before lowering escalation.")
     mission.escalation_level = body.level
     mission.escalation_reason = body.reason
     audit(session, mission, "mission.escalation_changed", now, {"level": body.level, "reason": body.reason}, priority=0)
@@ -144,6 +150,8 @@ def complete(mission_id: UUID, body: CompletionInput, session: Session = Depends
     mission = require_mission(session, mission_id)
     claim_version(session, mission, body.version)
     require_field(mission)
+    if session.scalar(select(Alert).where(Alert.mission_id == mission_id, Alert.resolved_at.is_(None)).limit(1)):
+        raise HTTPException(409, "Resolve open SOS alerts before completing the mission.")
     assigned = select(Assignment.personnel_id).where(Assignment.mission_id == mission.id)
     session.execute(update(Personnel).where(Personnel.id.in_(assigned)).values(station=mission.station))
     mission.status = "completed"

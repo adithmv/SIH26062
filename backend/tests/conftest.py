@@ -9,19 +9,20 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.main import app
-from app.seed import seed
+from tests.fixtures_data import seed
 
 
 @pytest.fixture()
-def database(tmp_path, monkeypatch):
+def database(tmp_path, monkeypatch, request):
     url = os.getenv("TEST_DATABASE_URL", "sqlite:///" + (tmp_path / "test.sqlite3").as_posix())
     engine = create_engine(url)
     import app.db as db
     monkeypatch.setattr(db, "engine", engine)
     config = Config("alembic.ini")
     command.upgrade(config, "head")
-    with Session(engine) as session:
-        seed(session)
+    if not request.node.get_closest_marker("empty_database"):
+        with Session(engine) as session:
+            seed(session)
     yield engine
     command.downgrade(config, "base")
     engine.dispose()

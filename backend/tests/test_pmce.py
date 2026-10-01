@@ -6,12 +6,15 @@ from sqlalchemy.orm import Session
 
 from app.models import PMCEOutbox
 from app import pmce
+from tests.fixtures_data import uid
 
 
 def event(kind="sos", **changes):
-    return {"id": str(uuid4()), "device_id": "field-01", "mission_id": str(uuid4()),
-            "kind": kind, "occurred_at": "2026-10-01T12:00:00Z",
-            "payload": {"message": "Test event"}, **changes}
+    payloads = {"sos": {"message": "Test event"}, "check_in": {"source": "radio", "note": "Test contact"},
+                "report": {"title": "Test report", "text": "Test content"}}
+    return {"id": str(uuid4()), "device_id": "field-01", "mission_id": str(uid("mission-0")),
+            "kind": kind, "occurred_at": "2026-09-28T12:00:00Z",
+            "payload": payloads.get(kind, {}), **changes}
 
 
 def test_policy_and_durable_queue(client, database):
@@ -45,7 +48,7 @@ def test_validation(client):
     for changes in ({"kind": "unknown"}, {"priority": 0},
                     {"occurred_at": "2026-10-01T12:00:00"},
                     {"payload": {"data": "a" * 65536}}):
-        assert client.post("/api/pmce/outbox", json=event(**changes)).status_code == 422
+        assert client.post("/api/pmce/outbox", json=event(**changes)).status_code in (413, 422)
     assert client.post("/api/pmce/sync", json={"mode": "limited", "byte_budget": 0}).status_code == 422
 
 
@@ -158,7 +161,7 @@ def test_rejected_event_does_not_block_following_work(client, monkeypatch):
     result = client.post("/api/pmce/sync", json={"mode": "broadband"}).json()
     assert [row["status"] for row in result] == ["blocked", "acknowledged"]
     state = client.get("/api/pmce/status").json()
-    assert state["counts"] == {"blocked": 1, "acknowledged": 1, "pending": 0, "paused": 0}
+    assert state["counts"] == {"blocked": 1, "acknowledged": 1, "pending": 0, "paused": 0, "superseded": 0}
     assert state["undelivered_by_priority"]["P0"] == 1
     assert state["attempts"] == 2
     assert len(client.get("/api/pmce/outbox?pending_only=true").json()) == 1
