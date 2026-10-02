@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
 
+type ReceiptTestWindow = Window & {
+  receiptTest: { loseReceipt: boolean; attemptedIds: string[] };
+};
+
 async function fieldMission(request: APIRequestContext) {
   const missions = await (await request.get("/api/missions")).json();
   for (const m of missions.filter(
@@ -146,18 +150,26 @@ test("lost acknowledgement is retried without a duplicate", async ({
 }) => {
   const mission = await fieldMission(request);
   await prepare(page, mission.code);
-  let loseReceipt = true;
-  const attemptedIds: string[] = [];
-  await page.route(
-    "**/api/missions/" + mission.id + "/check-ins",
-    async (route) => {
-      const discardReceipt = loseReceipt;
-      attemptedIds.push(route.request().postDataJSON().client_event_id);
-      const response = await route.fetch();
-      if (discardReceipt) await route.abort("failed");
-      else await route.fulfill({ response });
-    },
-  );
+  // Page routing does not intercept requests handled by the active service worker.
+  // Let the real fetch reach central, then discard its response in the page.
+  await page.evaluate((missionId: string) => {
+    const target = window as ReceiptTestWindow;
+    target.receiptTest = { loseReceipt: true, attemptedIds: [] };
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.endsWith(`/api/missions/${missionId}/check-ins`) || init?.method !== "POST")
+        return originalFetch(input, init);
+      const discardReceipt = target.receiptTest.loseReceipt;
+      target.receiptTest.attemptedIds.push(JSON.parse(String(init.body)).client_event_id);
+      const response = await originalFetch(input, init);
+      if (discardReceipt) {
+        await response.arrayBuffer();
+        throw new TypeError("Test: response lost after server commit");
+      }
+      return response;
+    };
+  }, mission.id);
   await checkIn(page, "Receipt lost after server accepted.");
   await expect(page.getByText("1 undelivered", { exact: true })).toBeVisible();
   await expect
@@ -168,10 +180,15 @@ test("lost acknowledgement is retried without a duplicate", async ({
     )
     .toBe(1);
   // Let the automatic retry obtain a receipt; it may finish before a manual click.
-  loseReceipt = false;
+  await page.evaluate(() => {
+    (window as ReceiptTestWindow).receiptTest.loseReceipt = false;
+  });
   await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({
     timeout: 20000,
   });
+  const attemptedIds = await page.evaluate(() =>
+    (window as ReceiptTestWindow).receiptTest.attemptedIds,
+  );
   expect(attemptedIds.length).toBeGreaterThanOrEqual(2);
   expect(attemptedIds[0]).toBeTruthy();
   expect(new Set(attemptedIds).size).toBe(1);
