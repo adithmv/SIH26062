@@ -146,11 +146,16 @@ test("lost acknowledgement is retried without a duplicate", async ({
 }) => {
   const mission = await fieldMission(request);
   await prepare(page, mission.code);
+  let loseReceipt = true;
+  const attemptedIds: string[] = [];
   await page.route(
     "**/api/missions/" + mission.id + "/check-ins",
     async (route) => {
-      await route.fetch();
-      await route.abort("failed");
+      const discardReceipt = loseReceipt;
+      attemptedIds.push(route.request().postDataJSON().client_event_id);
+      const response = await route.fetch();
+      if (discardReceipt) await route.abort("failed");
+      else await route.fulfill({ response });
     },
   );
   await checkIn(page, "Receipt lost after server accepted.");
@@ -162,11 +167,14 @@ test("lost acknowledgement is retried without a duplicate", async ({
           .check_ins.length,
     )
     .toBe(1);
-  await page.unroute("**/api/missions/" + mission.id + "/check-ins");
-  await page
-    .getByRole("button", { name: "Send pending reports", exact: true })
-    .click();
-  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible();
+  // Let the automatic retry obtain a receipt; it may finish before a manual click.
+  loseReceipt = false;
+  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({
+    timeout: 20000,
+  });
+  expect(attemptedIds.length).toBeGreaterThanOrEqual(2);
+  expect(attemptedIds[0]).toBeTruthy();
+  expect(new Set(attemptedIds).size).toBe(1);
   expect(
     (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
   ).toHaveLength(1);
