@@ -310,7 +310,9 @@ export default function App() {
             )}
           </>
         )}
-        <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
+        <div hidden={page === "Data Management"}>
+          <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
+        </div>
         <footer>SIH26062 · Prototype · No live tracking or emergency dispatch connected.</footer>
       </main>
     </div>
