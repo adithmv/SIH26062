@@ -17,6 +17,7 @@ const json = (body: unknown, method = "POST") => ({ method, headers: { "Content-
 export default function DataManagement({ revision }: { revision: number }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [selected, setSelected] = useState<StoredFile | null>(null);
+  const [folder, setFolder] = useState<"originals" | "prepared">("originals");
   const [importance, setImportance] = useState("normal");
   const [confidentiality, setConfidentiality] = useState("normal");
   const [ready, setReady] = useState(false);
@@ -61,25 +62,49 @@ export default function DataManagement({ revision }: { revision: number }) {
     });
   }
   return <section className="data-management" aria-label="File storage">
-    <p>Upload expedition files, see where they are stored, and prepare compressed or encrypted copies.</p>
-    <div className="panel">
-      <strong>Storage folder on this backend computer</strong>
-      <p className="storage-path">{listing?.storage_root ?? "Loading storage location…"}</p>
-      <p>Originals go in <b>originals</b>; prepared copies go in <b>prepared</b>. Up to 20 MiB per file. Nothing is sent to base from this page yet.</p>
-      <label>Add a file <input type="file" disabled={busy || !listing} onChange={e => { void upload(e.target.files?.[0]); e.target.value = ""; }} /></label>
-    </div>
+    <p>Browse files on this device on the left. The other device’s files will appear on the right when a connection is available.</p>
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {busy && <p role="status">Working… Please keep this page open.</p>}
-    {listing && listing.files.length === 0 && <p className="panel">No files stored yet. Add your first expedition file above.</p>}
-    {!!listing?.files.length && <div className="table-wrap"><table><thead><tr><th>File</th><th>Data level</th><th>Storage location</th><th>Actions</th></tr></thead><tbody>
-      {listing.files.map(file => <tr key={file.id}>
-        <td><strong>{file.name}</strong><br />{size(file.size)}<br /><small>{file.status}</small></td>
-        <td>{file.importance} / {file.confidentiality}<br /><small>Original: not encrypted</small></td>
-        <td className="storage-path">{file.storage_path}</td>
-        <td><button disabled={busy} onClick={() => edit(file)}>Edit data level</button><br /><a href={`/api/files/${file.id}/download`}>Download original</a></td>
-      </tr>)}
-    </tbody></table></div>}
+    <div className="file-manager">
+      <section className="file-pane" aria-label="This device">
+        <header className="file-pane-heading"><h2>This device</h2><span>Local storage</span></header>
+        <div className="file-address"><strong>Folder</strong><span className="storage-path">{listing ? `${listing.storage_root}/${folder}` : "Loading storage location…"}</span></div>
+        <div className="file-toolbar" role="group" aria-label="Local folders">
+          <button aria-pressed={folder === "originals"} onClick={() => setFolder("originals")}>Originals</button>
+          <button aria-pressed={folder === "prepared"} onClick={() => setFolder("prepared")}>Prepared copies</button>
+        </div>
+        <div className="file-pane-body">
+          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Size</th><th>{folder === "originals" ? "Data level" : "Protection"}</th><th>Actions</th></tr></thead><tbody>
+            {folder === "originals" && listing?.files.map(file => <tr key={file.id} className={selected?.id === file.id ? "file-selected" : ""}>
+              <td><button className="file-name" disabled={busy} onClick={() => edit(file)}>{file.name}</button></td>
+              <td>{size(file.size)}</td><td>{file.importance} / {file.confidentiality}</td>
+              <td><button disabled={busy} onClick={() => edit(file)}>Edit data level</button><br /><a href={`/api/files/${file.id}/download`}>Download original</a></td>
+            </tr>)}
+            {folder === "prepared" && listing?.files.flatMap(file => file.copies.map(copy => <tr key={copy.id}>
+              <td><button className="file-name" disabled={busy} onClick={() => edit(file)}>{file.name}{copy.compressed ? ".gz" : ""}{copy.encrypted ? ".pemenc" : ""}</button><small className="storage-path">{copy.id}</small></td>
+              <td>{size(copy.size)}</td><td>{copy.encrypted ? "Encrypted" : "Not encrypted"}<br />{copy.compressed ? "Compressed" : "Not compressed"}</td>
+              <td><a href={`/api/files/copies/${copy.id}/download`}>Download copy</a><br /><button disabled={busy} onClick={() => edit(file)}>File details</button></td>
+            </tr>))}
+          </tbody></table></div>
+          {!listing ? <p className="file-empty">Loading files…</p> : (folder === "originals" ? listing.files.length === 0 : listing.files.every(file => file.copies.length === 0)) && <p className="file-empty">{folder === "originals" ? "This folder is empty. Add a file from your device below." : "No prepared copies yet. Select an original file to compress or encrypt it."}</p>}
+        </div>
+        <div className="file-pane-footer">{listing ? (folder === "originals" ? listing.files.length : listing.files.reduce((total, file) => total + file.copies.length, 0)) : "—"} files · Stored locally</div>
+        <div className="file-upload"><label>Add a file <input type="file" disabled={busy || !listing} onChange={e => { setFolder("originals"); void upload(e.target.files?.[0]); e.target.value = ""; }} /></label><small>Up to 20 MiB. Added to Originals on the backend computer; this is not a view of your entire disk.</small></div>
+      </section>
+      <section className="file-pane" aria-label="Other device / Base">
+        <header className="file-pane-heading"><h2>Other device / Base</h2><span>Not connected</span></header>
+        <div className="file-address"><strong>Folder</strong><span>No remote folder available</span></div>
+        <div className="file-toolbar"><span>Remote files</span></div>
+        <div className="file-pane-body">
+          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Size</th><th>Status</th></tr></thead><tbody /></table></div>
+          <div className="file-empty"><strong>No device connected</strong><p>Remote browsing and file transfer are not connected yet. Files from another device cannot be listed here yet.</p></div>
+        </div>
+        <div className="file-pane-footer">Remote file count unavailable</div>
+        <div className="file-upload"><p>Preparing a local copy does not send it to the other device.</p></div>
+      </section>
+    </div>
+    <div className="transfer-status" aria-label="File transfer status"><strong>Transfers</strong><span>Not available yet · No files sent to base</span></div>
     {selected && <section className="panel" aria-label="Edit data level">
       <div className="page-heading"><h2>Edit data level — {selected.name}</h2><button disabled={busy} onClick={() => { setSelected(null); setPassword(""); setConfirmation(""); setUnlock(""); }}>Close</button></div>
       <div className="file-split">

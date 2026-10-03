@@ -2,6 +2,8 @@
 
 Open **Data Management** in Polar Expedition Manager.
 
+The file manager has two panes. **This device** lists the backend's Originals and Prepared copies folders. **Other device / Base** shows Not connected until remote browsing and file transfer are implemented; it does not display sample files. Select a local filename to see its full storage path and preparation controls below the panes.
+
 1. **Add a file** (nonempty, up to 20 MiB). The page shows its actual location on the backend computer.
 2. **Edit data level** to mark importance and confidentiality, then **Save data level**.
 3. Drag the original into the preparation area or click **Use this file**. Choose compression and answer **Encrypt this file?**

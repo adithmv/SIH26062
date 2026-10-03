@@ -4,6 +4,8 @@ import { test, expect } from "@playwright/test";
 test("store, classify, encrypt and restore a file", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Data Management", exact: true }).click();
+  await expect(page.getByRole("region", { name: "This device", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Other device / Base", exact: true })).toContainText("Not connected");
   const name = `file-test-${Date.now()}.txt`;
   await expect(page.getByLabel("Add a file")).toBeEnabled();
   await page.getByLabel("Add a file").setInputFiles({ name, mimeType: "text/plain", buffer: Buffer.from("disposable roundtrip check") });
@@ -28,4 +30,6 @@ test("store, classify, encrypt and restore a file", async ({ page }) => {
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
   expect(Buffer.concat(chunks).toString()).toBe("disposable roundtrip check");
+  await page.getByRole("button", { name: "Prepared copies", exact: true }).click();
+  await expect(page.getByRole("region", { name: "This device", exact: true })).toContainText(`${name}.gz.pemenc`);
 });
