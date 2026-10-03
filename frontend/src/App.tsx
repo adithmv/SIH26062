@@ -6,7 +6,8 @@ import OfflinePanel from "./OfflinePanel";
 import MissionForm from "./MissionForm";
 import MissionWorkspace from "./MissionWorkspace";
 import "./App.css";
-const pages = ["Overview", "Missions", "Personnel", "Vehicles"] as const;
+import DataManagement from "./DataManagement";
+const pages = ["Data Management", "Overview", "Missions", "Personnel", "Vehicles"] as const;
 type Page = (typeof pages)[number];
 
 export default function App() {
@@ -79,44 +80,24 @@ export default function App() {
   }
   return (
     <div className="shell">
-      <aside>
-        <a className="brand" href="#" onClick={() => navigate("Overview")}>
-          <span className="brand-mark">△</span>
-          <span>
-            POLARIS<small>EXPEDITION OPERATIONS</small>
-          </span>
-        </a>
-        <div className="nav-label">WORKSPACE</div>
+      <header className="app-header">
+        <a className="brand" href="#" onClick={() => navigate("Overview")}>Polar Expedition Manager</a>
         <nav aria-label="Main navigation">
-          {pages.map((p, i) => (
+          {pages.map((p) => (
             <button
               key={p}
               className={page === p ? "active" : ""}
               aria-current={page === p ? "page" : undefined}
               onClick={() => navigate(p)}
             >
-              <span aria-hidden="true">{["◈", "↗", "◎", "▱"][i]}</span>
               {p}
             </button>
           ))}
         </nav>
-        <div className="sidebar-note">
-          ● DEVELOPMENT BUILD<p>Expedition operations</p>
-          <small>
-            Operator-entered records.
-            <br />
-            No live tracking connected.
-          </small>
-        </div>
-      </aside>
+      </header>
       <main>
-        <header>
-          <span>Expedition / Operations workspace</span>
-          <span className="badge">PROTOTYPE</span>
-        </header>
         <div className="page-heading">
           <div>
-            <p className="eyebrow">ANTARCTIC FIELD OPERATIONS</p>
             <h1>
               {form === "create"
                 ? "Plan a field mission"
@@ -126,26 +107,18 @@ export default function App() {
                     ? "Expedition overview"
                     : page}
             </h1>
-            <p className="muted">
-              A shared picture of your people, missions and field resources.
-            </p>
           </div>
           <button onClick={() => setRevision((v) => v + 1)}>
             Refresh records
           </button>
         </div>
-        <div className="notice">
-          ⓘ Contact status uses the server's current time. Positions show the
-          last recorded observation. No live tracking or emergency dispatch is connected.
-        </div>
-        <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
         {error && (
           <div role="alert" className="panel error">
             {error} Previously loaded records may be stale.
             <button onClick={() => setRevision((v) => v + 1)}>Try again</button>
           </div>
         )}
-        {loading ? (
+        {page === "Data Management" ? <DataManagement revision={revision} /> : loading ? (
           <p role="status" className="panel">
             Loading expedition records…
           </p>
@@ -274,7 +247,7 @@ export default function App() {
                                 aria-label={"View " + m.code}
                                 onClick={() => open(m.id)}
                               >
-                                View ↗
+                                View
                               </button>
                             </td>
                           </tr>
@@ -291,12 +264,6 @@ export default function App() {
                 <div className="cards">
                   {people.map((p) => (
                     <article key={p.id}>
-                      <span className="avatar">
-                        {p.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </span>
                       <h3>{p.name}</h3>
                       <p>{p.role}</p>
                       <p>
@@ -323,7 +290,6 @@ export default function App() {
                 <div className="cards">
                   {vehicles.map((v) => (
                     <article key={v.id}>
-                      <p className="eyebrow">VEHICLE</p>
                       <h3>{v.code}</h3>
                       <p>{v.kind}</p>
                       {missions
@@ -344,12 +310,8 @@ export default function App() {
             )}
           </>
         )}
-        <footer>
-          SIH26062
-          <span>
-            Mission continuity starts with a reliable operational picture.
-          </span>
-        </footer>
+        <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
+        <footer>SIH26062 · Prototype · No live tracking or emergency dispatch connected.</footer>
       </main>
     </div>
   );

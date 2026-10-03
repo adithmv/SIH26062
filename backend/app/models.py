@@ -7,6 +7,26 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 
+class ManagedFile(Base):
+    __tablename__ = "managed_files"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(180))
+    size: Mapped[int]
+    importance: Mapped[str] = mapped_column(String(20), default="normal")
+    confidentiality: Mapped[str] = mapped_column(String(20), default="normal")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PreparedFile(Base):
+    __tablename__ = "prepared_files"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    file_id: Mapped[UUID] = mapped_column(ForeignKey("managed_files.id"), index=True)
+    size: Mapped[int]
+    compressed: Mapped[bool]
+    encrypted: Mapped[bool]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Personnel(Base):
     __tablename__ = "personnel"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)

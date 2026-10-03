@@ -14,6 +14,8 @@ services:
       retries: 12
   api:
     build: ./backend
+    volumes:
+      - expedition_files:/app/data/files
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sih_demo}:${POSTGRES_PASSWORD:-local_demo_only}@db:5432/${POSTGRES_DB:-sih26062}
     ports:
@@ -37,3 +39,4 @@ services:
         condition: service_healthy
 volumes:
   postgres_data:
+  expedition_files:

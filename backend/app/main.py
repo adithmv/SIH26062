@@ -11,16 +11,18 @@ from .db import get_session
 from .models import Alert, Assignment, CheckIn, Event, Mission, MissionSupply, Personnel, Position, Vehicle
 from .pmce import router as pmce_router
 from .logistics import router as logistics_router
+from .files import router as files_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
                          require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
                       MissionDetailOut, MissionEdit, MissionOut, MissionPlan, PersonOut,
                       PositionInput, VehicleOut, VersionInput)
 
-app = FastAPI(title="SIH26062 Mission Operations", version="0.3.0")
+app = FastAPI(title="Polar Expedition Manager", version="0.3.0")
 
 app.include_router(pmce_router)
 app.include_router(logistics_router)
+app.include_router(files_router)
 
 
 @app.exception_handler(IntegrityError)

@@ -1,6 +1,8 @@
-# SIH26062
+# Polar Expedition Manager
 
 Polar expedition operations with an offline-first PMCE backend.
+
+**Data Management:** upload files, see their storage paths, edit importance/confidentiality, and create compressed or password-encrypted copies. Originals remain unchanged. Files stay local; transfer to base is not connected yet. [How it works](docs/DATA_MANAGEMENT.md).
 
 ## Backend status
 

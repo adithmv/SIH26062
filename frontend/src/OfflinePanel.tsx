@@ -134,7 +134,7 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
         <div>
           <h2>
             {online
-              ? "Device storage & delivery"
+              ? "Offline storage & sync"
               : "Offline · working from this device"}
           </h2>
           <p className="muted">
@@ -151,10 +151,8 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
           Showing saved records. Server status may be out of date.
         </p>
       )}
-      <p className="muted">
-        Only acknowledged reports have reached the server. Offline records show
-        the last server assessment, which may be stale.
-      </p>
+      <details className="connection-settings">
+        <summary>Connection settings</summary>
       <div className="actions">
         <label>
           Connection profile{" "}
@@ -191,12 +189,10 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
         </button>
       </div>
       <p className="muted">
-        Simulator: constrained adds 800 ms per request and limits outgoing JSON
-        to 2,048 bytes per minute. Responses and map downloads are excluded.
-        Automatic delivery runs every five seconds while this app is open, with
-        up to five attempts and increasing delays. Safety check-ins precede
-        location reports.
+        Constrained mode: 800 ms delay, 2,048 outgoing bytes per minute.
+        Automatic sync checks every five seconds while this page is open.
       </p>
+      </details>
       {review && (
         <section
           className="local-reports"

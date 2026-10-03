@@ -295,6 +295,7 @@ test("profile budget blocks delivery until broadband reconnects", async ({
 }) => {
   const mission = await fieldMission(request);
   await prepare(page, mission.code);
+  await page.getByText("Connection settings", { exact: true }).click();
   await page.getByLabel("Connection profile").selectOption("offline");
   await checkIn(page, "Simulator queued report");
   expect(

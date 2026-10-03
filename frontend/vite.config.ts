@@ -14,8 +14,8 @@ export default defineConfig({
       injectRegister: "auto",
       includeAssets: ["maps/maitri-demo.svg", "icon.svg"],
       manifest: {
-        name: "Polaris Mission Operations",
-        short_name: "Polaris",
+        name: "Polar Expedition Manager",
+        short_name: "Polar Manager",
         start_url: "/",
         display: "standalone",
         theme_color: "#102b3b",
