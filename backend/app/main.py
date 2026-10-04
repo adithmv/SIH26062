@@ -12,6 +12,7 @@ from .models import Alert, Assignment, CheckIn, Event, Mission, MissionSupply, P
 from .pmce import router as pmce_router
 from .logistics import router as logistics_router
 from .files import router as files_router
+from .connections import router as connection_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
                          require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
@@ -23,6 +24,7 @@ app = FastAPI(title="Polar Expedition Manager", version="0.3.0")
 app.include_router(pmce_router)
 app.include_router(logistics_router)
 app.include_router(files_router)
+app.include_router(connection_router)
 
 
 @app.exception_handler(IntegrityError)

@@ -2,7 +2,19 @@
 
 Open **Data Management** in Polar Expedition Manager.
 
-The file manager has two panes. **This device** lists the backend's Originals and Prepared copies folders. **Other device / Base** shows Not connected until remote browsing and file transfer are implemented; it does not display sample files. Select a local filename to see its full storage path and preparation controls below the panes.
+The file manager has two panes. **This device** lists the backend's Originals and Prepared copies folders. **Other device / Base** shows the connection check status; remote browsing and file transfer are still unavailable. Select a local filename to see its full storage path and preparation controls below the panes.
+
+## Connection area
+
+Enter the other backend's address (for example `http://192.168.1.20:8000`), choose an automatic check interval or Manual only, then select **Connect**. Use **Check now** to recheck, **Apply and reconnect** after editing settings, or **Disconnect** to stop. The address and interval are saved only in this browser. Reloading or leaving Data Management stops checks; return and select Connect again.
+
+The local backend checks the other backend's `/api/health`. **Reachable** means its most recent health response passed; it does not mean a persistent connection, authenticated identity or successful file transfer. The screen shows the last response time, elapsed milliseconds and backend version. Failed checks explain what to check. Automatic checks retry at the chosen interval; a timeout reaching the local backend requires Check now.
+
+Only localhost and private network IP addresses are accepted. Redirects, URLs containing credentials and link-local addresses are rejected. Checks time out after 10 seconds and accept at most 4 KiB of response data. No files or passwords are sent. This does not change the separate PMCE report-delivery settings.
+
+For a local check, enter `http://127.0.0.1:8000`; this checks the same computer, not another device. To test a separate backend locally, start another instance on port 8001 with its own database. A real second computer needs a reachable address and network configuration. The current app has no authentication: do not expose its existing APIs to untrusted networks. This feature does not change server binding or firewall settings.
+
+## Files
 
 1. **Add a file** or drop multiple files into the upload area (nonempty, up to 20 MiB each). Uploads run one at a time; failures are shown by filename. Same-name files are kept separately.
 2. **Edit data level** to mark importance and confidentiality, then **Save data level**.

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ConnectionPanel from "./ConnectionPanel";
+import type { ConnectionState } from "./ConnectionPanel";
 
 type Copy = { available: boolean; created_at: string; id: string; size: number; compressed: boolean; encrypted: boolean; storage_path: string };
 type StoredFile = { available: boolean; created_at: string; id: string; name: string; size: number; importance: string; confidentiality: string; storage_path: string; status: string; copies: Copy[] };
@@ -23,6 +25,7 @@ async function request(path: string, init?: RequestInit) {
 const json = (body: unknown, method = "POST") => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export default function DataManagement({ revision }: { revision: number }) {
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionState>("Not connected");
   const operation = useRef(false);
   const editor = useRef<HTMLElement>(null);
   const requestVersion = useRef(0);
@@ -129,6 +132,7 @@ export default function DataManagement({ revision }: { revision: number }) {
   const visibleCount = folder === "originals" ? originals.length : copies.length;
   const totalBytes = (listing?.files ?? []).reduce((sum, file) => sum + (file.available ? file.size : 0) + file.copies.reduce((n, copy) => n + (copy.available ? copy.size : 0), 0), 0);
   return <section className="data-management" aria-label="File storage">
+    <ConnectionPanel onStatus={setConnectionStatus} />
     <p>Browse files on this device on the left. The other device’s files will appear on the right when a connection is available.</p>
     {loadError && <div role="alert" className="form-error">Storage unavailable. {listing ? "Previously loaded files may be out of date." : "Check that the backend is running."} <button disabled={busy} onClick={() => void run(refresh)}>Retry storage</button></div>}
     {error && <p role="alert" className="form-error">{error}</p>}
@@ -162,12 +166,12 @@ export default function DataManagement({ revision }: { revision: number }) {
         <div className="file-upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy && listing && !loadError) void upload(Array.from(e.dataTransfer.files)); }}><label>Add a file <input type="file" multiple disabled={busy || !listing || !!loadError} onChange={e => { void upload(Array.from(e.target.files ?? [])); e.target.value = ""; }} /></label><small>Choose or drop one or more files here. Up to 20 MiB each. Same-name files are kept separately. This shows the backend's storage, not your entire disk.</small></div>
       </section>
       <section className="file-pane" aria-label="Other device / Base">
-        <header className="file-pane-heading"><h2>Other device / Base</h2><span>Not connected</span></header>
+        <header className="file-pane-heading"><h2>Other device / Base</h2><span>{connectionStatus}</span></header>
         <div className="file-address"><strong>Folder</strong><span>No remote folder available</span></div>
         <div className="file-toolbar"><span>Remote files</span></div>
         <div className="file-pane-body">
           <div className="table-wrap"><table><thead><tr><th>Name</th><th>Size</th><th>Status</th></tr></thead><tbody /></table></div>
-          <div className="file-empty"><strong>No device connected</strong><p>Remote browsing and file transfer are not implemented yet.</p></div>
+          <div className="file-empty"><strong>{connectionStatus === "Reachable" ? "Backend reachable" : connectionStatus === "Connecting" || connectionStatus === "Checking" ? "Checking the other device…" : "No verified connection"}</strong><p>Remote browsing and file transfer are not implemented yet. Use the Connection area above to check or change the device address.</p></div>
         </div>
         <div className="file-pane-footer">Remote file count unavailable</div>
         <div className="file-upload"><p>Preparing a local copy does not send it to the other device.</p></div>
