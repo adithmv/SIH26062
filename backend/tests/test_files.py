@@ -108,3 +108,24 @@ def test_same_name_uploads_preserve_both_files(client):
     assert first["id"] != second["id"]
     assert Path(first["storage_path"]).exists()
     assert len(client.get("/api/files").json()["files"]) == 2
+
+
+def test_changed_original_and_truncated_copy_are_rejected(client):
+    row = upload(client)
+    copy = client.post(f'/api/files/{row["id"]}/prepare', json={"compress": False}).json()["copies"][0]
+    restored = client.post(f'/api/files/copies/{copy["id"]}/restore', json={})
+    assert "observations.txt" in restored.headers["content-disposition"]
+    Path(copy["storage_path"]).write_bytes(b"truncated")
+    assert client.post(f'/api/files/copies/{copy["id"]}/restore', json={}).status_code == 400
+    Path(row["storage_path"]).write_bytes(b"changed")
+    assert client.post(f'/api/files/{row["id"]}/prepare', json={}).status_code == 409
+
+
+def test_storage_permission_error_is_readable(client, monkeypatch):
+    def denied():
+        raise PermissionError("internal path must not be exposed")
+    monkeypatch.setattr(files, "root", denied)
+    response = client.get("/api/files")
+    assert response.status_code == 503
+    assert "folder permissions" in response.json()["detail"]
+    assert "internal path" not in response.text

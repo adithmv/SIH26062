@@ -18,6 +18,9 @@ test("store, classify, encrypt and restore a file", async ({ page }) => {
   await page.getByRole("button", { name: "Use this file" }).click();
   await page.getByRole("combobox", { name: "Importance", exact: true }).selectOption("important");
   await expect(page.getByRole("button", { name: "Create prepared copy" })).toBeDisabled();
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Importance", exact: true })).toHaveValue("important");
   await page.getByRole("combobox", { name: "Importance", exact: true }).selectOption("critical");
   await page.getByRole("combobox", { name: "Encrypt this file?", exact: true }).selectOption("yes");
   await page.getByLabel("Encryption password", { exact: true }).fill("temporary test password");
@@ -61,4 +64,24 @@ test("multiple uploads, search and storage recovery", async ({ page }) => {
   await expect(local.getByRole("button", { name: `${prefix}-a.txt`, exact: true })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Find a file" }).fill("no-matching-file-123456");
   await expect(local).toContainText("No files match your search.");
+});
+
+test("downloads fail inside the app and successful saves do not depend on a refresh", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Data Management", exact: true }).click();
+  const name = `refine-${Date.now()}.txt`;
+  await expect(page.getByLabel("Add a file")).toBeEnabled();
+  await page.getByLabel("Add a file").setInputFiles({ name, mimeType: "text/plain", buffer: Buffer.from("temporary check") });
+  await expect(page.getByText("File stored locally. Its location is shown below.")).toBeVisible();
+  await page.route("**/api/files/*/download", route => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ detail: "Stored file is missing." }) }));
+  const row = page.getByRole("row").filter({ hasText: name });
+  await row.getByRole("button", { name: "Download original" }).click();
+  await expect(page.getByRole("alert")).toContainText("Stored file is missing.");
+  await expect(page.getByRole("heading", { name: "Data Management", exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Edit data level" }).click();
+  await page.route("**/api/files", route => route.request().method() === "GET" ? route.abort() : route.continue());
+  await page.getByRole("combobox", { name: "Importance", exact: true }).selectOption("critical");
+  await page.getByRole("button", { name: "Save data level", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Data level saved" })).toBeVisible();
+  await expect(row).toContainText("critical");
 });

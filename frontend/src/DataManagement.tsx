@@ -6,7 +6,14 @@ type Listing = { folders: Record<"originals" | "prepared", string>; storage_root
 const size = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 const date = (value: string) => new Date(/Z$|[+-]\d{2}:\d{2}$/.test(value) ? value : value + "Z").toLocaleString();
 async function request(path: string, init?: RequestInit) {
-  const response = await fetch(`/api/files${path}`, { ...init, cache: "no-store" });
+  let response: Response;
+  try {
+    response = await fetch(`/api/files${path}`, { ...init, cache: "no-store" });
+  } catch {
+    throw new Error(init?.method && init.method !== "GET"
+      ? "Connection interrupted. Refresh the file list before retrying; the operation may already have finished."
+      : "Cannot reach file storage. Check that the backend is running.");
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(typeof error.detail === "string" ? error.detail : "Could not complete the file operation.");
@@ -17,6 +24,7 @@ const json = (body: unknown, method = "POST") => ({ method, headers: { "Content-
 
 export default function DataManagement({ revision }: { revision: number }) {
   const operation = useRef(false);
+  const editor = useRef<HTMLElement>(null);
   const requestVersion = useRef(0);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
@@ -68,10 +76,30 @@ export default function DataManagement({ revision }: { revision: number }) {
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : "File operation failed."); }
     finally { operation.current = false; setBusy(false); setProgress(""); }
   }
+  function canLeaveEditor() {
+    return !dirty || window.confirm("Discard the unsaved data-level changes?");
+  }
+  function applyFile(file: StoredFile) {
+    setListing(current => current ? { ...current, files: current.files.map(row => row.id === file.id ? file : row) } : current);
+    setSelected(file);
+  }
+  async function download(path: string, name: string, options?: RequestInit) {
+    const response = await request(path, options);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url; link.download = name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
   function edit(file: StoredFile) {
+    if (selected?.id === file.id) { editor.current?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (!canLeaveEditor()) return;
     setSelected(file); setImportance(file.importance); setConfidentiality(file.confidentiality);
     setReady(false); setCompress(true); setEncrypt(false); setPassword(""); setConfirmation(""); setUnlock(""); setNotice(""); setError("");
   }
+  useEffect(() => {
+    if (selected?.id) editor.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selected?.id]);
   async function upload(files: File[]) {
     if (!files.length) return;
     await run(async () => {
@@ -95,7 +123,7 @@ export default function DataManagement({ revision }: { revision: number }) {
   }
   const dirty = !!selected && (importance !== selected.importance || confidentiality !== selected.confidentiality);
   const localFiles = (listing?.files ?? []).filter(file => file.name.toLowerCase().includes(search.toLowerCase()));
-  const ordered = <T extends { name: string; size: number; created_at: string }>(items: T[]) => [...items].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name) : sort === "size" ? b.size - a.size : b.created_at.localeCompare(a.created_at));
+  const ordered = <T extends { name: string; size: number; created_at: string }>(items: T[]) => [...items].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name) : sort === "size" ? b.size - a.size : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const originals = ordered(localFiles);
   const copies = ordered((listing?.files ?? []).flatMap(file => file.copies.map(copy => ({ ...copy, file, name: file.name + (copy.compressed ? ".gz" : "") + (copy.encrypted ? ".pemenc" : "") }))).filter(copy => copy.name.toLowerCase().includes(search.toLowerCase())));
   const visibleCount = folder === "originals" ? originals.length : copies.length;
@@ -120,12 +148,12 @@ export default function DataManagement({ revision }: { revision: number }) {
             {folder === "originals" && originals.map(file => <tr key={file.id} className={selected?.id === file.id ? "file-selected" : ""}>
               <td><button className="file-name" disabled={busy} onClick={() => edit(file)}>{file.name}</button><small>{file.available ? date(file.created_at) : "File missing from storage"}</small></td>
               <td>{size(file.size)}</td><td>{file.importance} / {file.confidentiality}</td>
-              <td><button disabled={busy} onClick={() => edit(file)}>Edit data level</button><br />{file.available && <a href={`/api/files/${file.id}/download`}>Download original</a>}</td>
+              <td><button disabled={busy} onClick={() => edit(file)}>Edit data level</button><br />{file.available && <button className="file-link" disabled={busy} onClick={() => void run(() => download(`/${file.id}/download`, file.name))}>Download original</button>}</td>
             </tr>)}
             {folder === "prepared" && copies.map(copy => <tr key={copy.id}>
               <td><button className="file-name" disabled={busy} onClick={() => edit(copy.file)}>{copy.name}</button><small>{copy.available ? date(copy.created_at) : "Copy missing from storage"}</small></td>
               <td>{size(copy.size)}</td><td>{copy.encrypted ? "Encrypted" : "Not encrypted"}<br />{copy.compressed ? "Compressed" : "Not compressed"}</td>
-              <td>{copy.available && <a href={`/api/files/copies/${copy.id}/download`}>Download copy</a>}<br /><button disabled={busy} onClick={() => edit(copy.file)}>File details</button></td>
+              <td>{copy.available && <button className="file-link" disabled={busy} onClick={() => void run(() => download(`/copies/${copy.id}/download`, copy.name))}>Download copy</button>}<br /><button disabled={busy} onClick={() => edit(copy.file)}>File details</button></td>
             </tr>)}
           </tbody></table></div>
           {!listing ? <p className="file-empty">{loadError ? "Storage unavailable. Use Retry storage above." : "Loading files…"}</p> : visibleCount === 0 && <p className="file-empty">{search ? "No files match your search." : folder === "originals" ? "This folder is empty. Add a file from your device below." : "No prepared copies yet. Select an original file to compress or encrypt it."}</p>}
@@ -139,18 +167,19 @@ export default function DataManagement({ revision }: { revision: number }) {
         <div className="file-toolbar"><span>Remote files</span></div>
         <div className="file-pane-body">
           <div className="table-wrap"><table><thead><tr><th>Name</th><th>Size</th><th>Status</th></tr></thead><tbody /></table></div>
-          <div className="file-empty"><strong>No device connected</strong><p>Remote browsing and file transfer are not connected yet. Files from another device cannot be listed here yet.</p></div>
+          <div className="file-empty"><strong>No device connected</strong><p>Remote browsing and file transfer are not implemented yet.</p></div>
         </div>
         <div className="file-pane-footer">Remote file count unavailable</div>
         <div className="file-upload"><p>Preparing a local copy does not send it to the other device.</p></div>
       </section>
     </div>
     <div className="transfer-status" aria-label="File transfer status"><strong>Transfers</strong><span>Not available yet · No files sent to base</span></div>
-    {selected && <section className="panel" aria-label="Edit data level">
-      <div className="page-heading"><h2>Edit data level — {selected.name}</h2><button disabled={busy} onClick={() => { setSelected(null); setPassword(""); setConfirmation(""); setUnlock(""); }}>Close</button></div>
+    {selected && <section ref={editor} className="panel file-editor" aria-label="Edit data level">
+      <div className="page-heading"><h2>Edit data level — {selected.name}</h2><button disabled={busy} onClick={() => { if (!canLeaveEditor()) return; setSelected(null); setPassword(""); setConfirmation(""); setUnlock(""); }}>Close</button></div>
+      {(error || busy) && <p className={error ? "form-error" : "muted"}>{error || "Working…"}</p>}
       <div className="file-split">
         <div><h3>1. Select the original</h3>
-          <div className="file-drop" draggable={!busy} onDragStart={e => e.dataTransfer.setData("text/plain", selected.id)}>
+          <div className="file-drop" draggable={!busy && selected.available} onDragStart={e => e.dataTransfer.setData("text/plain", selected.id)}>
             <strong>{selected.name}</strong><p>{size(selected.size)} · Added {date(selected.created_at)}</p>{!selected.available && <p role="alert">Original missing from storage. Existing prepared copies can still be restored.</p>}<p className="storage-path">{selected.storage_path}</p>
             <p>Drag this file to the preparation area, or use the button.</p>
             <button disabled={busy || !selected.available} onClick={() => setReady(true)}>Use this file</button>
@@ -161,7 +190,7 @@ export default function DataManagement({ revision }: { revision: number }) {
           <fieldset disabled={busy}>
             <label>Importance<select value={importance} onChange={e => setImportance(e.target.value)}><option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option></select></label>
             <label>Confidentiality<select value={confidentiality} onChange={e => setConfidentiality(e.target.value)}><option value="normal">Normal</option><option value="confidential">Confidential</option></select></label>
-            <button onClick={() => void run(async () => { await request(`/${selected.id}`, json({ importance, confidentiality }, "PATCH")); await refresh(); setNotice("Data level saved. File contents are unchanged."); })}>Save data level</button>
+            <button onClick={() => void run(async () => { const updated: StoredFile = await (await request(`/${selected.id}`, json({ importance, confidentiality }, "PATCH"))).json(); applyFile(updated); setNotice("Data level saved. File contents are unchanged."); })}>Save data level</button>
             <div className="file-drop" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy && selected.available && e.dataTransfer.getData("text/plain") === selected.id) setReady(true); }}>
               {ready ? `Selected: ${selected.name}` : "Preparation area — drop the original here or choose Use this file."}
             </div>
@@ -171,9 +200,9 @@ export default function DataManagement({ revision }: { revision: number }) {
             {encrypt && <><label>Encryption password<input type="password" autoComplete="new-password" value={password} maxLength={256} onChange={e => setPassword(e.target.value)} /></label><label>Confirm password<input type="password" autoComplete="new-password" value={confirmation} maxLength={256} onChange={e => setConfirmation(e.target.value)} /></label><p>Use 12–256 characters. Keep the password safely; it is not saved and cannot be recovered.</p></>}
             <p>{dirty ? "You have unsaved data-level changes. Save the data level before creating a copy." : "Data level saved."}</p>
             <button disabled={!ready || dirty || !selected.available} onClick={() => void run(async () => {
-              if (encrypt && (password.length < 12 || password !== confirmation)) throw new Error("Use at least 12 characters and matching passwords.");
-              await request(`/${selected.id}/prepare`, json({ compress, encrypt, password }));
-              setPassword(""); setConfirmation(""); await refresh(); setNotice("Prepared copy saved locally. The original is unchanged. Nothing was sent to base.");
+              if (encrypt && (Array.from(password).length < 12 || password !== confirmation)) throw new Error("Use at least 12 characters and matching passwords.");
+              const updated: StoredFile = await (await request(`/${selected.id}/prepare`, json({ compress, encrypt, password: encrypt ? password : "" }))).json();
+              applyFile(updated); setPassword(""); setConfirmation(""); setNotice("Prepared copy saved locally. The original is unchanged. Nothing was sent to base.");
             })}>Create prepared copy</button>
           </fieldset>
         </div>
@@ -182,12 +211,10 @@ export default function DataManagement({ revision }: { revision: number }) {
         {selected.copies.some(copy => copy.encrypted) && <label>Password to restore an encrypted copy<input type="password" autoComplete="off" value={unlock} maxLength={256} onChange={e => setUnlock(e.target.value)} /></label>}
         {selected.copies.map(copy => <div className="prepared-copy" key={copy.id}>
           <p><b>{copy.encrypted ? "Encrypted" : "Not encrypted"} · {copy.compressed ? "Compressed" : "Not compressed"}</b> · {size(copy.size)} · {copy.available ? "Stored locally" : "Missing from storage"}</p><p>{copy.size < selected.size ? `${size(selected.size - copy.size)} smaller than the original` : copy.size > selected.size ? `${size(copy.size - selected.size)} larger than the original` : "Same size as the original"} · Created {date(copy.created_at)}</p><p className="storage-path">{copy.storage_path}</p>
-          {copy.available && <a href={`/api/files/copies/${copy.id}/download`}>Download prepared copy</a>}{" "}
+          {copy.available && <button className="file-link" disabled={busy} onClick={() => void run(() => download(`/copies/${copy.id}/download`, selected.name + (copy.compressed ? ".gz" : "") + (copy.encrypted ? ".pemenc" : "")))}>Download prepared copy</button>}{" "}
           <button disabled={busy || !copy.available} onClick={() => void run(async () => {
-            const response = await request(`/copies/${copy.id}/restore`, json({ password: unlock }));
-            const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a");
-            link.href = url; link.download = selected.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 10000);
-            setUnlock(""); setNotice("Restored file downloaded.");
+            await download(`/copies/${copy.id}/restore`, selected.name, json({ password: copy.encrypted ? unlock : "" }));
+            setUnlock(""); setNotice("Restored file download started.");
           })}>Restore and download</button>
         </div>)}</>}
     </section>}

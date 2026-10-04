@@ -90,6 +90,16 @@ footer { border-top: 1px solid #ddd; padding: 16px 0; font-size: 12px; color: #6
 .file-pane-body { min-height: 250px; max-height: 420px; overflow: auto; flex: 1; }
 .file-pane th, .file-pane td { padding: 9px 8px; font-size: 12px; }
 .file-name { border: 0; padding: 0; background: transparent; color: #2456a6; text-align: left; overflow-wrap: anywhere; }
+.file-link { border: 0; background: transparent; padding: 5px 0; color: #2456a6; text-align: left; text-decoration: underline; }
+.file-pane table { min-width: 440px; }
+.file-pane th { position: sticky; top: 0; z-index: 1; }
+.file-pane td:first-child { min-width: 140px; max-width: 240px; overflow-wrap: anywhere; }
+.file-pane td:nth-child(2) { white-space: nowrap; }
+.file-editor { border-top: 1px solid #ccc; padding-top: 12px; scroll-margin-top: 12px; }
+.file-editor h2 { overflow-wrap: anywhere; }
+.file-editor .file-split > div { min-width: 0; }
+.file-editor .file-drop { overflow-wrap: anywhere; }
+.data-management button:focus-visible, .data-management input:focus-visible, .data-management select:focus-visible { outline: 2px solid #2456a6; outline-offset: 2px; }
 .file-selected { background: #eef3f9; }
 .file-search { display: flex; gap: 10px; padding: 0 12px; border-bottom: 1px solid #ddd; }
 .file-search label { flex: 1; min-width: 0; font-size: 12px; }

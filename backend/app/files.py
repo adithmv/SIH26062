@@ -7,12 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
+from urllib.parse import quote
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, Response
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, SecretStr
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,7 +22,20 @@ from sqlalchemy.orm import Session
 from .db import get_session
 from .models import ManagedFile, PreparedFile
 
-router = APIRouter(prefix="/api/files", tags=["Data management"])
+class FileRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def handle(request):
+            try:
+                return await handler(request)
+            except OSError:
+                raise HTTPException(503, "Cannot access file storage. Check folder permissions and available disk space.") from None
+
+        return handle
+
+
+router = APIRouter(prefix="/api/files", tags=["Data management"], route_class=FileRoute)
 LIMIT = 20 * 1024 * 1024
 MAGIC = b"PEM1"
 
@@ -47,10 +62,11 @@ def require(session, model, identifier):
 def describe(row, session, copies=None):
     if copies is None:
         copies = session.scalars(select(PreparedFile).where(PreparedFile.file_id == row.id).order_by(PreparedFile.created_at)).all()
+    available = location(row.id).is_file()
     return {"id": str(row.id), "name": row.name, "size": row.size,
             "created_at": row.created_at, "available": location(row.id).is_file(),
             "importance": row.importance, "confidentiality": row.confidentiality,
-            "storage_path": str(location(row.id)), "status": "Stored locally — not sent to base",
+            "storage_path": str(location(row.id)), "status": "Stored locally — not sent to base" if available else "Original missing from storage",
             "copies": [{"id": str(p.id), "size": p.size, "compressed": p.compressed,
                         "encrypted": p.encrypted, "storage_path": str(location(p.id, True)),
                         "created_at": p.created_at, "available": location(p.id, True).is_file()}
@@ -135,6 +151,8 @@ def prepare(identifier: UUID, body: Prepare, session: Session = Depends(get_sess
     if body.encrypt and not 12 <= len(password) <= 256:
         raise HTTPException(400, "Use an encryption password of 12–256 characters.")
     data = read(location(row.id), LIMIT)
+    if len(data) != row.size:
+        raise HTTPException(409, "Original file size has changed outside the app. Upload the file again before preparing it.")
     if body.compress:
         data = gzip.compress(data, mtime=0)
     if body.encrypt:
@@ -182,7 +200,10 @@ class Unlock(BaseModel):
 @router.post("/copies/{identifier}/restore")
 def restore(identifier: UUID, body: Unlock, session: Session = Depends(get_session)):
     copy = require(session, PreparedFile, identifier)
+    row = require(session, ManagedFile, copy.file_id)
     data = read(location(copy.id, True))
+    if len(data) != copy.size:
+        raise HTTPException(400, "Stored copy is incomplete or has changed outside the app.")
     if copy.encrypted:
         password = body.password.get_secret_value()
         if not 12 <= len(password) <= 256:
@@ -202,4 +223,6 @@ def restore(identifier: UUID, body: Unlock, session: Session = Depends(get_sessi
                 raise ValueError("Too large")
         except (OSError, EOFError, ValueError, zlib.error):
             raise HTTPException(400, "Invalid compressed file.") from None
-    return Response(data, media_type="application/octet-stream", headers={"Cache-Control": "no-store", "Content-Disposition": "attachment"})
+    if len(data) != row.size:
+        raise HTTPException(400, "Restored file size does not match the original.")
+    return Response(data, media_type="application/octet-stream", headers={"Cache-Control": "no-store", "Content-Disposition": "attachment; filename*=UTF-8''" + quote(row.name, safe="")})
