@@ -4,10 +4,12 @@ Open **Data Management** in Polar Expedition Manager.
 
 The file manager has two panes. **This device** lists the backend's Originals and Prepared copies folders. **Other device / Base** shows Not connected until remote browsing and file transfer are implemented; it does not display sample files. Select a local filename to see its full storage path and preparation controls below the panes.
 
-1. **Add a file** (nonempty, up to 20 MiB). The page shows its actual location on the backend computer.
+1. **Add a file** or drop multiple files into the upload area (nonempty, up to 20 MiB each). Uploads run one at a time; failures are shown by filename. Same-name files are kept separately.
 2. **Edit data level** to mark importance and confidentiality, then **Save data level**.
 3. Drag the original into the preparation area or click **Use this file**. Choose compression and answer **Encrypt this file?**
 4. **Create prepared copy** saves a separate file. Download it, or use **Restore and download** to recover its contents.
+
+Use **Find a file** and **Sort files** to browse either folder. Sizes, timestamps and storage totals are shown. Copy details show how its size compares with the original. Save changed data levels before preparing a copy. Missing files are marked explicitly; when storage is unavailable, use **Retry storage**. No sample files are added.
 
 Originals remain unchanged and unencrypted. Confidentiality is a label, not access control. The current local prototype has no user permissions. Files are **stored locally, not sent to base**; PMCE file transfer is not connected yet.
 

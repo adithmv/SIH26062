@@ -2,6 +2,7 @@
 import gzip
 import os
 import re
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -43,19 +44,28 @@ def require(session, model, identifier):
     return row
 
 
-def describe(row, session):
+def describe(row, session, copies=None):
+    if copies is None:
+        copies = session.scalars(select(PreparedFile).where(PreparedFile.file_id == row.id).order_by(PreparedFile.created_at)).all()
     return {"id": str(row.id), "name": row.name, "size": row.size,
+            "created_at": row.created_at, "available": location(row.id).is_file(),
             "importance": row.importance, "confidentiality": row.confidentiality,
             "storage_path": str(location(row.id)), "status": "Stored locally — not sent to base",
             "copies": [{"id": str(p.id), "size": p.size, "compressed": p.compressed,
-                        "encrypted": p.encrypted, "storage_path": str(location(p.id, True))}
-                       for p in session.scalars(select(PreparedFile).where(PreparedFile.file_id == row.id).order_by(PreparedFile.created_at))]}
+                        "encrypted": p.encrypted, "storage_path": str(location(p.id, True)),
+                        "created_at": p.created_at, "available": location(p.id, True).is_file()}
+                       for p in copies]}
 
 
 @router.get("")
-def listing(session: Session = Depends(get_session)):
+def listing(response: Response, session: Session = Depends(get_session)):
+    response.headers["Cache-Control"] = "no-store"
+    copies = {}
+    for copy in session.scalars(select(PreparedFile).order_by(PreparedFile.created_at)):
+        copies.setdefault(copy.file_id, []).append(copy)
     return {"storage_root": str(root()), "max_bytes": LIMIT,
-            "files": [describe(row, session) for row in session.scalars(select(ManagedFile).order_by(ManagedFile.created_at.desc()))]}
+            "folders": {"originals": str(root() / "originals"), "prepared": str(root() / "prepared")},
+            "files": [describe(row, session, copies.get(row.id, [])) for row in session.scalars(select(ManagedFile).order_by(ManagedFile.created_at.desc()))]}
 
 
 @router.post("", status_code=201)
@@ -108,10 +118,14 @@ def key(password, salt):
     return Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(password.encode("utf-8"))
 
 
-def read(path):
+def read(path, max_bytes=LIMIT + 65536):
     if not path.is_file():
         raise HTTPException(404, "Stored file is missing. Check the storage folder.")
-    return path.read_bytes()
+    with path.open("rb") as source:
+        data = source.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(400, "Stored file exceeds the allowed size. Check the storage folder.")
+    return data
 
 
 @router.post("/{identifier}/prepare", status_code=201)
@@ -120,7 +134,7 @@ def prepare(identifier: UUID, body: Prepare, session: Session = Depends(get_sess
     password = body.password.get_secret_value()
     if body.encrypt and not 12 <= len(password) <= 256:
         raise HTTPException(400, "Use an encryption password of 12–256 characters.")
-    data = read(location(row.id))
+    data = read(location(row.id), LIMIT)
     if body.compress:
         data = gzip.compress(data, mtime=0)
     if body.encrypt:
@@ -186,6 +200,6 @@ def restore(identifier: UUID, body: Unlock, session: Session = Depends(get_sessi
                 data = source.read(LIMIT + 1)
             if len(data) > LIMIT:
                 raise ValueError("Too large")
-        except (OSError, EOFError, ValueError):
+        except (OSError, EOFError, ValueError, zlib.error):
             raise HTTPException(400, "Invalid compressed file.") from None
     return Response(data, media_type="application/octet-stream", headers={"Cache-Control": "no-store", "Content-Disposition": "attachment"})

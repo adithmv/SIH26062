@@ -91,6 +91,9 @@ footer { border-top: 1px solid #ddd; padding: 16px 0; font-size: 12px; color: #6
 .file-pane th, .file-pane td { padding: 9px 8px; font-size: 12px; }
 .file-name { border: 0; padding: 0; background: transparent; color: #2456a6; text-align: left; overflow-wrap: anywhere; }
 .file-selected { background: #eef3f9; }
+.file-search { display: flex; gap: 10px; padding: 0 12px; border-bottom: 1px solid #ddd; }
+.file-search label { flex: 1; min-width: 0; font-size: 12px; }
+.file-upload { border-top-style: dashed; }
 .file-empty { padding: 24px 16px; color: #666; font-size: 13px; }
 .file-pane-footer { padding: 8px 12px; border-top: 1px solid #ddd; background: #fafafa; }
 .file-upload { padding: 0 12px 12px; min-height: 135px; border-top: 1px solid #ddd; }
