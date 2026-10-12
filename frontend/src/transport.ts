@@ -1,4 +1,5 @@
 import { beforeRequest } from "./connectivity";
+import { baseMode } from "./baseMode";
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -18,7 +19,7 @@ export async function network<T>(
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 5000);
   try {
-    await beforeRequest(body, controller.signal);
+    if (!baseMode) await beforeRequest(body, controller.signal);
     const response = await fetch("/api/" + path, {
       method,
       signal: controller.signal,
@@ -27,6 +28,7 @@ export async function network<T>(
       cache: "no-store",
     });
     if (!response.ok) {
+      if (baseMode && response.status === 401) window.dispatchEvent(new Event("base-session-expired"));
       const data = await response.json().catch(() => ({}));
       const detail =
         typeof data.detail === "string"

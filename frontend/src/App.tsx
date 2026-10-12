@@ -7,7 +7,9 @@ import MissionForm from "./MissionForm";
 import MissionWorkspace from "./MissionWorkspace";
 import "./App.css";
 import DataManagement from "./DataManagement";
-const pages = ["Data Management", "Overview", "Missions", "Personnel", "Vehicles"] as const;
+import { baseMode, baseUser } from "./baseMode";
+import BaseOperations, { RegisterResource } from "./BaseOperations";
+const pages = ["Data Management", "Overview", "Missions", "Personnel", "Vehicles", "Cargo", "Inventory", "Alerts"] as const;
 type Page = (typeof pages)[number];
 
 export default function App() {
@@ -83,7 +85,7 @@ export default function App() {
       <header className="app-header">
         <a className="brand" href="#" onClick={() => navigate("Overview")}>Polar Expedition Manager</a>
         <nav aria-label="Main navigation">
-          {pages.map((p) => (
+          {pages.filter(p => baseMode || !["Cargo", "Inventory", "Alerts"].includes(p)).map((p) => (
             <button
               key={p}
               className={page === p ? "active" : ""}
@@ -118,7 +120,9 @@ export default function App() {
             <button onClick={() => setRevision((v) => v + 1)}>Try again</button>
           </div>
         )}
-        {page === "Data Management" ? <DataManagement revision={revision} /> : loading ? (
+        {baseMode && page === "Personnel" && <RegisterResource area="personnel" onSaved={() => setRevision(v => v + 1)} />}
+        {baseMode && page === "Vehicles" && <RegisterResource area="vehicles" onSaved={() => setRevision(v => v + 1)} />}
+        {baseMode && (page === "Cargo" || page === "Inventory" || page === "Alerts") ? <BaseOperations key={page} area={page === "Cargo" ? "cargo" : page === "Inventory" ? "inventory" : "alerts"} missions={missions} revision={revision} /> : page === "Data Management" ? <DataManagement revision={revision} /> : loading ? (
           <p role="status" className="panel">
             Loading expedition records…
           </p>
@@ -200,7 +204,7 @@ export default function App() {
                   </div>
                   <button
                     className="primary"
-                    disabled={!online}
+                      disabled={!online || (baseMode && baseUser?.role === "viewer")}
                     onClick={() => setForm("create")}
                   >
                     New mission
@@ -310,10 +314,10 @@ export default function App() {
             )}
           </>
         )}
-        <div hidden={page === "Data Management"}>
+        {!baseMode && <div hidden={page === "Data Management"}>
           <OfflinePanel onRefresh={() => setRevision((v) => v + 1)} />
-        </div>
-        <footer>SIH26062 · Prototype · No live tracking or emergency dispatch connected.</footer>
+        </div>}
+        <footer>SIH26062 · {baseMode ? "Base station" : "Prototype"} · No live tracking or emergency dispatch connected.</footer>
       </main>
     </div>
   );

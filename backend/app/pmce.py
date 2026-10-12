@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import AwareDatetime, Field, field_validator, model_validator
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -261,8 +261,13 @@ def deliver(body, session, owner):
             row.bytes_attempted += len(data)
             session.commit()
             try:
-                response = client.post(url + "/api/pmce/events", content=data,
-                                       headers={"Content-Type": "application/json", "Content-Encoding": encoding})
+                headers = {"Content-Type": "application/json", "Content-Encoding": encoding}
+                token = os.getenv("PMCE_BASE_TOKEN")
+                if token:
+                    if not url.startswith("https://"):
+                        raise ValueError("Device credentials require an HTTPS base address")
+                    headers["Authorization"] = "Bearer " + token
+                response = client.post(url + "/api/pmce/events", content=data, headers=headers)
                 response.raise_for_status()
                 if response.json().get("acknowledged_event_id") != str(row.id):
                     raise ValueError("Missing or mismatched receipt")
@@ -314,7 +319,9 @@ def status(session: Session = Depends(get_session)):
 
 
 @router.post("/events")
-def receive(body: MissionEvent, session: Session = Depends(get_session)):
+def receive(body: MissionEvent, request: Request, session: Session = Depends(get_session)):
+    if hasattr(request.state, "device") and body.device_id != request.state.device:
+        raise HTTPException(403, "Event device ID must match the registered device credential.")
     row = ingest(session, body, now_utc())
     return {"acknowledged_event_id": row.id, "received_at": utc(row.received_at)}
 

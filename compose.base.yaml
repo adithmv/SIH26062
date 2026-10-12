@@ -1,0 +1,66 @@
+name: polar-base
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: polar
+      POSTGRES_USER: polar
+      POSTGRES_PASSWORD: ${BASE_DB_PASSWORD:?Set BASE_DB_PASSWORD to a long random hexadecimal password}
+    volumes:
+      - base_database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U polar -d polar"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      options: {max-size: 10m, max-file: "3"}
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PEM_MODE: base
+      PEM_ORIGIN: https://${BASE_HOST:?Set BASE_HOST to your base DNS name}
+      DATABASE_URL: postgresql+psycopg://polar:${BASE_DB_PASSWORD:?Set BASE_DB_PASSWORD}@db:5432/polar
+      FILE_STORAGE_ROOT: /app/data/files
+    volumes:
+      - base_files:/app/data/files
+    command: [sh, -c, "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --limit-concurrency 32 --timeout-keep-alive 5 --no-access-log"]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      options: {max-size: 10m, max-file: "3"}
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      BASE_HOST: ${BASE_HOST:?Set BASE_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - base_certificates:/data
+      - base_caddy_config:/config
+    depends_on:
+      api: {condition: service_healthy}
+    logging:
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  base_database:
+  base_files:
+  base_certificates:
+  base_caddy_config:

@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/.venv
+**/dist
+**/__pycache__
+**/*.sqlite3
+**/.env
+**/.env.*
+backend/data
+tmp
+presentation

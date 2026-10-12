@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from "react";
+import { baseMode, baseUser } from "./baseMode";
 import { LocalReports } from "./OfflinePanel";
 import { useDeliveries, useOnline } from "./useDeliveries";
 import { saveReport } from "./localStore";
@@ -57,7 +58,7 @@ function ActionForm({
             : action === "escalation"
               ? { version, level, reason: note }
               : { version, note };
-      if (action === "check-ins" || action === "positions") {
+      if (!baseMode && (action === "check-ins" || action === "positions")) {
         onSaved(
           await saveReport(mission, action, {
             ...body,
@@ -84,7 +85,7 @@ function ActionForm({
   return (
     <form className="action-form" onSubmit={submit}>
       <h3>{titles[action]}</h3>
-      {(action === "check-ins" || action === "positions") && (
+      {!baseMode && (action === "check-ins" || action === "positions") && (
         <p className="muted">
           Saved on this device first. Delivery is attempted when connected;
           check the delivery status.
@@ -297,7 +298,7 @@ export default function MissionWorkspace({
           Latest operator decision: {mission.escalation_reason}
         </p>
       )}
-      {!action && mission.status !== "completed" && (
+      {!action && mission.status !== "completed" && (!baseMode || baseUser?.role !== "viewer") && (
         <div className="actions">
           <button disabled={pending || !online} onClick={onEdit}>
             Edit plan
@@ -360,7 +361,7 @@ export default function MissionWorkspace({
           or completing this mission.
         </p>
       )}
-      <LocalReports missionId={mission.id} />
+      {!baseMode && <LocalReports missionId={mission.id} />}
       <div className="detail-grid">
         <div>
           <h3>Mission plan</h3>

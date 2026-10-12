@@ -1,4 +1,7 @@
 from datetime import datetime
+import os
+from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -13,13 +16,43 @@ from .pmce import router as pmce_router
 from .logistics import router as logistics_router
 from .files import router as files_router
 from .connections import router as connection_router
+from .security import authorize, router as security_router
+from .base import router as base_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
                          require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
                       MissionDetailOut, MissionEdit, MissionOut, MissionPlan, PersonOut,
                       PositionInput, VehicleOut, VersionInput)
 
-app = FastAPI(title="Polar Expedition Manager", version="0.3.0")
+@asynccontextmanager
+async def lifespan(app):
+    mode = os.getenv("PEM_MODE", "local")
+    if mode not in {"local", "base"}:
+        raise RuntimeError("PEM_MODE must be local or base")
+    if mode == "base":
+        origin = os.getenv("PEM_ORIGIN", "")
+        parsed = urlsplit(origin)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.path or parsed.query or parsed.fragment or parsed.username:
+            raise RuntimeError("Base mode requires PEM_ORIGIN=https://your-base-host without a trailing slash")
+    yield
+
+
+app = FastAPI(title="Polar Expedition Manager", version="0.3.0", dependencies=[Depends(authorize)], lifespan=lifespan,
+              docs_url=None if os.getenv("PEM_MODE") == "base" else "/docs",
+              redoc_url=None if os.getenv("PEM_MODE") == "base" else "/redoc",
+              openapi_url=None if os.getenv("PEM_MODE") == "base" else "/openapi.json")
+
+
+@app.middleware("http")
+async def private_responses(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+app.include_router(security_router)
+app.include_router(base_router)
 
 app.include_router(pmce_router)
 app.include_router(logistics_router)

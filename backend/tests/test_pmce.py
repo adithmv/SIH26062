@@ -58,6 +58,26 @@ def mock_central(monkeypatch, handler):
     monkeypatch.setattr(pmce.httpx, "Client", lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs))
 
 
+def test_base_delivery_token_is_only_sent_over_https(client, monkeypatch):
+    body = event()
+    client.post("/api/pmce/outbox", json=body)
+    sent = []
+    def central(request):
+        sent.append(request.headers.get("Authorization"))
+        return httpx.Response(200, json={"acknowledged_event_id": body["id"]})
+    mock_central(monkeypatch, central)
+    monkeypatch.setenv("PMCE_BASE_TOKEN", "test-token-only")
+    result = client.post("/api/pmce/sync", json={"mode": "broadband"})
+    assert result.status_code == 200
+    assert sent == []
+    monkeypatch.setenv("PMCE_CENTRAL_URL", "https://central.test")
+    later = pmce.now_utc() + timedelta(seconds=6)
+    monkeypatch.setattr(pmce, "now_utc", lambda: later)
+    result = client.post("/api/pmce/sync", json={"mode": "broadband"})
+    assert result.json()[0]["status"] == "acknowledged"
+    assert sent == ["Bearer test-token-only"]
+
+
 def test_offline_does_not_transmit_and_limited_defers_routine(client, monkeypatch):
     bodies = [event("report"), event()]
     for body in bodies:

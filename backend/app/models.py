@@ -7,6 +7,41 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 
+class BaseAccount(Base):
+    __tablename__ = "base_accounts"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(80), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(20))
+    active: Mapped[bool] = mapped_column(default=True)
+    failures: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BaseSession(Base):
+    __tablename__ = "base_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("base_accounts.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class BaseDevice(Base):
+    __tablename__ = "base_devices"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(default=True)
+
+
+class AccessEvent(Base):
+    __tablename__ = "access_events"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    actor: Mapped[str] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(40))
+    target: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class ManagedFile(Base):
     __tablename__ = "managed_files"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -15,6 +50,7 @@ class ManagedFile(Base):
     importance: Mapped[str] = mapped_column(String(20), default="normal")
     confidentiality: Mapped[str] = mapped_column(String(20), default="normal")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sha256: Mapped[str | None] = mapped_column(String(64))
 
 
 class PreparedFile(Base):
@@ -25,6 +61,7 @@ class PreparedFile(Base):
     compressed: Mapped[bool]
     encrypted: Mapped[bool]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sha256: Mapped[str | None] = mapped_column(String(64))
 
 
 class Personnel(Base):

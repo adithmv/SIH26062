@@ -1,5 +1,6 @@
 import { cacheValue, cachedValue } from "./localStore";
 import { ApiError, network } from "./transport";
+import { baseMode } from "./baseMode";
 export type Mission = {
   id: string;
   code: string;
@@ -65,6 +66,7 @@ export async function request<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   const value = await network<T>(path, method, body, signal);
+  if (baseMode) return value;
   if (method === "GET") await cacheValue(path, value);
   else if (value && typeof value === "object" && "id" in value)
     await cacheValue("missions/" + String(value.id), value);
@@ -78,6 +80,7 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
     );
     return value;
   } catch (error) {
+    if (baseMode) throw error;
     if (signal?.aborted || (error instanceof ApiError && error.status < 500))
       throw error;
     const cached = await cachedValue<T>(path).catch(() => undefined);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { baseMode } from "./baseMode";
 import { liveQuery } from "dexie";
 import { db, STORE_ERROR } from "./localStore";
 import type { Delivery } from "./localStore";
@@ -6,6 +7,7 @@ export function useDeliveries(missionId?: string) {
   const [items, setItems] = useState<Delivery[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (baseMode) return;
     const subscription = liveQuery(() =>
       missionId
         ? db.outbox.where("missionId").equals(missionId).toArray()

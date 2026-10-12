@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { baseMode, baseUser } from "./baseMode";
+import BaseStatus from "./BaseStatus";
 import ConnectionPanel from "./ConnectionPanel";
 import type { ConnectionState } from "./ConnectionPanel";
 
@@ -17,6 +19,7 @@ async function request(path: string, init?: RequestInit) {
       : "Cannot reach file storage. Check that the backend is running.");
   }
   if (!response.ok) {
+    if (baseMode && response.status === 401) window.dispatchEvent(new Event("base-session-expired"));
     const error = await response.json().catch(() => ({}));
     throw new Error(typeof error.detail === "string" ? error.detail : "Could not complete the file operation.");
   }
@@ -25,6 +28,7 @@ async function request(path: string, init?: RequestInit) {
 const json = (body: unknown, method = "POST") => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export default function DataManagement({ revision }: { revision: number }) {
+  const readOnly = baseMode && baseUser?.role === "viewer";
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>("Not connected");
   const operation = useRef(false);
   const editor = useRef<HTMLElement>(null);
@@ -132,15 +136,15 @@ export default function DataManagement({ revision }: { revision: number }) {
   const visibleCount = folder === "originals" ? originals.length : copies.length;
   const totalBytes = (listing?.files ?? []).reduce((sum, file) => sum + (file.available ? file.size : 0) + file.copies.reduce((n, copy) => n + (copy.available ? copy.size : 0), 0), 0);
   return <section className="data-management" aria-label="File storage">
-    <ConnectionPanel onStatus={setConnectionStatus} />
-    <p>Browse files on this device on the left. The other device’s files will appear on the right when a connection is available.</p>
+    {baseMode ? <BaseStatus /> : <ConnectionPanel onStatus={setConnectionStatus} />}
+    <p>{baseMode ? "Browse files stored at the base. Upload files from this computer, or download a stored file." : "Browse files on this device on the left. Remote browsing and transfer are not connected yet."}</p>
     {loadError && <div role="alert" className="form-error">Storage unavailable. {listing ? "Previously loaded files may be out of date." : "Check that the backend is running."} <button disabled={busy} onClick={() => void run(refresh)}>Retry storage</button></div>}
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {busy && <p role="status">{progress || "Working… Please keep this page open."}</p>}
     <div className="file-manager">
       <section className="file-pane" aria-label="This device">
-        <header className="file-pane-heading"><h2>This device</h2><span>Local storage</span></header>
+        <header className="file-pane-heading"><h2>{baseMode ? "Base files" : "This device"}</h2><span>{baseMode ? "Server storage" : "Local storage"}</span></header>
         <div className="file-address"><strong>Folder</strong><span className="storage-path">{listing ? listing.folders[folder] : loadError ? "Storage unavailable" : "Loading storage location…"}</span></div>
         <div className="file-toolbar" role="group" aria-label="Local folders">
           <button aria-pressed={folder === "originals"} onClick={() => setFolder("originals")}>Originals</button>
@@ -163,9 +167,9 @@ export default function DataManagement({ revision }: { revision: number }) {
           {!listing ? <p className="file-empty">{loadError ? "Storage unavailable. Use Retry storage above." : "Loading files…"}</p> : visibleCount === 0 && <p className="file-empty">{search ? "No files match your search." : folder === "originals" ? "This folder is empty. Add a file from your device below." : "No prepared copies yet. Select an original file to compress or encrypt it."}</p>}
         </div>
         <div className="file-pane-footer">{listing ? visibleCount : "—"} {visibleCount === 1 ? "file" : "files"}{search ? " matching" : ""} · {size(totalBytes)} stored across both folders{loadError ? " · May be out of date" : ""}</div>
-        <div className="file-upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy && listing && !loadError) void upload(Array.from(e.dataTransfer.files)); }}><label>Add a file <input type="file" multiple disabled={busy || !listing || !!loadError} onChange={e => { void upload(Array.from(e.target.files ?? [])); e.target.value = ""; }} /></label><small>Choose or drop one or more files here. Up to 20 MiB each. Same-name files are kept separately. This shows the backend's storage, not your entire disk.</small></div>
+        {!readOnly && <div className="file-upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy && listing && !loadError) void upload(Array.from(e.dataTransfer.files)); }}><label>Add a file <input type="file" multiple disabled={busy || !listing || !!loadError} onChange={e => { void upload(Array.from(e.target.files ?? [])); e.target.value = ""; }} /></label><small>Choose or drop one or more files here. Up to 20 MiB each. Same-name files are kept separately. This shows the backend's storage, not your entire disk.</small></div>}
       </section>
-      <section className="file-pane" aria-label="Other device / Base">
+      {!baseMode && <section className="file-pane" aria-label="Other device / Base">
         <header className="file-pane-heading"><h2>Other device / Base</h2><span>{connectionStatus}</span></header>
         <div className="file-address"><strong>Folder</strong><span>No remote folder available</span></div>
         <div className="file-toolbar"><span>Remote files</span></div>
@@ -175,9 +179,9 @@ export default function DataManagement({ revision }: { revision: number }) {
         </div>
         <div className="file-pane-footer">Remote file count unavailable</div>
         <div className="file-upload"><p>Preparing a local copy does not send it to the other device.</p></div>
-      </section>
+      </section>}
     </div>
-    <div className="transfer-status" aria-label="File transfer status"><strong>Transfers</strong><span>Not available yet · No files sent to base</span></div>
+    {!baseMode && <div className="transfer-status" aria-label="File transfer status"><strong>Transfers</strong><span>Not available yet · No files sent to base</span></div>}
     {selected && <section ref={editor} className="panel file-editor" aria-label="Edit data level">
       <div className="page-heading"><h2>Edit data level — {selected.name}</h2><button disabled={busy} onClick={() => { if (!canLeaveEditor()) return; setSelected(null); setPassword(""); setConfirmation(""); setUnlock(""); }}>Close</button></div>
       {(error || busy) && <p className={error ? "form-error" : "muted"}>{error || "Working…"}</p>}
@@ -191,7 +195,7 @@ export default function DataManagement({ revision }: { revision: number }) {
           <p>The original stays unchanged and unencrypted. A confidential label alone does not protect its contents.</p>
         </div>
         <div><h3>2. Set level and prepare a copy</h3>
-          <fieldset disabled={busy}>
+          <fieldset disabled={busy || readOnly}>
             <label>Importance<select value={importance} onChange={e => setImportance(e.target.value)}><option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option></select></label>
             <label>Confidentiality<select value={confidentiality} onChange={e => setConfidentiality(e.target.value)}><option value="normal">Normal</option><option value="confidential">Confidential</option></select></label>
             <button onClick={() => void run(async () => { const updated: StoredFile = await (await request(`/${selected.id}`, json({ importance, confidentiality }, "PATCH"))).json(); applyFile(updated); setNotice("Data level saved. File contents are unchanged."); })}>Save data level</button>

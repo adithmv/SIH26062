@@ -129,3 +129,32 @@ def test_storage_permission_error_is_readable(client, monkeypatch):
     assert response.status_code == 503
     assert "folder permissions" in response.json()["detail"]
     assert "internal path" not in response.text
+
+
+def test_transfer_retry_checksum_and_same_size_corruption(client):
+    import hashlib
+    from uuid import uuid4
+    payload = b"real-test-payload"
+    headers = {"X-Transfer-ID": str(uuid4()), "X-Content-SHA256": hashlib.sha256(payload).hexdigest()}
+    first = client.post("/api/files?name=delivery.txt", content=payload, headers=headers)
+    assert first.status_code == 201
+    retry = client.post("/api/files?name=delivery.txt", content=payload, headers=headers)
+    assert retry.status_code == 201
+    assert retry.json()["id"] == first.json()["id"]
+    assert len(client.get("/api/files").json()["files"]) == 1
+    assert client.post("/api/files?name=delivery.txt", content=b"different", headers=headers).status_code == 422
+    headers.pop("X-Content-SHA256")
+    assert client.post("/api/files?name=delivery.txt", content=b"different", headers=headers).status_code == 409
+    row = first.json()
+    Path(row["storage_path"]).write_bytes(b"x" * len(payload))
+    assert client.get(f'/api/files/{row["id"]}/download').status_code == 409
+    assert client.post(f'/api/files/{row["id"]}/prepare', json={}).status_code == 409
+    assert not list(files.root().rglob("*.partial"))
+
+
+def test_disk_reserve_rejects_before_writing(client, monkeypatch):
+    from collections import namedtuple
+    usage = namedtuple("usage", "total used free")
+    monkeypatch.setattr(files.shutil, "disk_usage", lambda path: usage(100, 99, 1))
+    assert client.post("/api/files?name=full.txt", content=b"data").status_code == 507
+    assert client.get("/api/files").json()["files"] == []

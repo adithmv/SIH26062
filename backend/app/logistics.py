@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import AwareDatetime, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -252,10 +252,14 @@ def change_alert(session, alert_id, body, resolve):
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
-def acknowledge(alert_id: UUID, body: AlertAction, session: Session = Depends(get_session)):
+def acknowledge(alert_id: UUID, body: AlertAction, request: Request, session: Session = Depends(get_session)):
+    if hasattr(request.state, "account"):
+        body.operator = request.state.account.username
     return change_alert(session, alert_id, body, False)
 
 
 @router.post("/alerts/{alert_id}/resolve")
-def resolve(alert_id: UUID, body: AlertAction, session: Session = Depends(get_session)):
+def resolve(alert_id: UUID, body: AlertAction, request: Request, session: Session = Depends(get_session)):
+    if hasattr(request.state, "account"):
+        body.operator = request.state.account.username
     return change_alert(session, alert_id, body, True)

@@ -90,7 +90,9 @@ Open **http://127.0.0.1:5173/**. To stop the app, press **Ctrl+C** in both windo
 - Database: `backend/operations.sqlite3`
 - Uploaded files and prepared copies: `backend/data/files/`
 
-Files stay on the backend computer; file transfer to base is not connected yet. Encryption protects the prepared copy. The original stays unencrypted. Keep this prototype on your own computer; user sign-in and permissions are not implemented.
+Files stay on the backend computer. Encryption protects the prepared copy; the original stays unencrypted. The local setup above has no sign-in and should stay on your own computer.
+
+For the separate base station with sign-in, permissions and HTTPS, follow [Base station setup](docs/BASE_STATION.md). Deployment verification is still required before public use. The field file-transfer interface is not connected yet.
 
 ## If something does not work
 

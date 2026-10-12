@@ -48,3 +48,15 @@ jobs:
       - run: npx playwright test
         working-directory: frontend
       - run: docker compose config --quiet
+      - name: Validate base deployment configuration
+        run: |
+          docker compose -f compose.base.yaml config --quiet
+          docker compose -f compose.base.yaml -f compose.base.lan.yaml config --quiet
+        env:
+          BASE_HOST: localhost
+          BASE_DB_PASSWORD: ci_configuration_only
+      - name: Build base deployment images
+        run: docker compose -f compose.base.yaml build
+        env:
+          BASE_HOST: localhost
+          BASE_DB_PASSWORD: ci_configuration_only
