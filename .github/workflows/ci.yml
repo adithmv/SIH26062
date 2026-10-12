@@ -60,3 +60,25 @@ jobs:
         env:
           BASE_HOST: localhost
           BASE_DB_PASSWORD: ci_configuration_only
+      - name: Check base startup and authentication boundary
+        run: |
+          docker compose -f compose.base.yaml up -d --wait --wait-timeout 120
+          # Only this disposable localhost check uses its temporary, untrusted certificate.
+          curl --retry 10 --retry-connrefused --retry-delay 2 --insecure --fail https://localhost/api/health
+          test "$(curl --insecure --silent --output /tmp/base-denied.json --write-out '%{http_code}' https://localhost/api/missions)" = 401
+          curl --insecure --silent --fail https://localhost/api/auth/session | python -c 'import json,sys; assert json.load(sys.stdin) == {"mode":"base", "user":None}'
+        env:
+          BASE_HOST: localhost
+          BASE_DB_PASSWORD: ci_configuration_only
+      - name: Show base container logs on failure
+        if: failure()
+        run: docker compose -f compose.base.yaml logs --tail 100
+        env:
+          BASE_HOST: localhost
+          BASE_DB_PASSWORD: ci_configuration_only
+      - name: Remove disposable base test containers
+        if: always()
+        run: docker compose -f compose.base.yaml down --volumes
+        env:
+          BASE_HOST: localhost
+          BASE_DB_PASSWORD: ci_configuration_only
