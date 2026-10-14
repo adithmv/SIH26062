@@ -1,0 +1,48 @@
+const { chromium } = require('../../frontend/node_modules/playwright');
+const path = require('path');
+(async()=>{
+const browser=await chromium.launch({headless:true});
+const page=await browser.newPage({viewport:{width:1280,height:900},deviceScaleFactor:1.5});
+const out=path.join(__dirname,'assets');
+const shot=async(name,locator)=>{await page.waitForTimeout(350); await (locator||page).screenshot({path:path.join(out,name+'.png')});};
+await page.goto('http://127.0.0.1:5180');
+await page.getByRole('button',{name:'Data Management',exact:true}).click();
+await page.getByLabel('Add a file').setInputFiles({name:'station-notes.txt',mimeType:'text/plain',buffer:Buffer.from('Example notes for the manual only.\n'.repeat(20))});
+await page.getByText('File stored locally. Its location is shown below.').waitFor();
+await shot('files',page.getByRole('region',{name:'File storage',exact:true}));
+await page.getByLabel('Other device address').fill('http://127.0.0.1:8010');
+await page.getByRole('button',{name:'Connect',exact:true}).click();
+await page.getByRole('status').filter({hasText:/^Reachable$/}).waitFor();
+await shot('connection',page.getByRole('region',{name:'Device connection'}));
+await page.getByRole('button',{name:'Edit data level',exact:true}).first().click();
+await page.getByRole('combobox',{name:'Importance',exact:true}).selectOption('important');
+await page.getByRole('combobox',{name:'Confidentiality',exact:true}).selectOption('confidential');
+await page.getByRole('button',{name:'Save data level',exact:true}).click();
+await page.getByRole('button',{name:'Use this file',exact:true}).click();
+await page.getByRole('combobox',{name:'Encrypt this file?',exact:true}).selectOption('yes');
+await shot('prepare',page.getByRole('region',{name:'Edit data level',exact:true}));
+await page.getByLabel('Encryption password',{exact:true}).fill('Manual-only-example-passphrase');
+await page.getByLabel('Confirm password',{exact:true}).fill('Manual-only-example-passphrase');
+await page.getByRole('button',{name:'Create prepared copy',exact:true}).click();
+await page.getByRole('button',{name:'Restore and download',exact:true}).waitFor();
+await shot('restore',page.locator('.prepared-copy'));
+await page.getByRole('button',{name:'Close',exact:true}).click();
+await page.getByRole('button',{name:'Prepared copies',exact:true}).click();
+await shot('copies',page.getByRole('region',{name:'This device',exact:true}));
+// Base UI uses an isolated illustrative session; no live accounts or database touched.
+let signedIn=false;
+await page.route('**/api/auth/session',r=>r.fulfill({json:{mode:'base',user:signedIn?{username:'station-operator',role:'operator'}:null}}));
+await page.route('**/api/auth/login',r=>{signedIn=true;return r.fulfill({json:{username:'station-operator',role:'operator'}})});
+await page.reload();
+await page.getByRole('heading',{name:'Base station sign-in'}).waitFor();
+await page.getByLabel('Username',{exact:true}).fill('station-operator');
+await shot('signin');
+await page.getByLabel('Password',{exact:true}).fill('Manual-only-example-passphrase');
+await page.getByRole('button',{name:'Sign in',exact:true}).click();
+await page.getByRole('button',{name:'Inventory',exact:true}).click();
+await page.getByText('Add stock item',{exact:true}).click();
+for(const [label,value] of [['Item code','SUP-01'],['Item name','Water containers'],['Station','Base station'],['Unit (such as litres)','containers']]) await page.getByLabel(label,{exact:true}).fill(value);
+await shot('inventory');
+await browser.close();
+})();
+

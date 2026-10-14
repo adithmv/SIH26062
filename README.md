@@ -2,6 +2,8 @@
 
 A basic app for managing polar expeditions and storing expedition files. You can upload files, set their importance, and create compressed or password-encrypted copies.
 
+**New here? [Open the visual quick guide (PDF)](output/pdf/Polar-Expedition-Manager-Quick-Guide.pdf)** - screenshots, arrows and short steps. [Download PDF](https://github.com/adithmv/SIH26062/raw/refs/heads/pmce-backend/output/pdf/Polar-Expedition-Manager-Quick-Guide.pdf).
+
 ## Install and run on Windows
 
 Use **PowerShell** for the commands below. Run each command one at a time.
