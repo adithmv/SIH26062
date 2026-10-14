@@ -43,8 +43,12 @@ LIMIT = 20 * 1024 * 1024
 MAGIC = b"PEM1"
 
 
+def storage_root():
+    return Path(os.getenv("FILE_STORAGE_ROOT", str(Path(__file__).resolve().parents[1] / "data" / "files"))).resolve()
+
+
 def root():
-    path = Path(os.getenv("FILE_STORAGE_ROOT", str(Path(__file__).resolve().parents[1] / "data" / "files"))).resolve()
+    path = storage_root()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -155,14 +159,14 @@ async def upload(request: Request, name: str, session: Session = Depends(get_ses
                 verify_data(read(path), existing, 409)
                 return describe(existing, session)
             raise HTTPException(409, "This transfer ID belongs to a different file. Use a new ID.")
-        # Exclusive destination creation prevents simultaneous retries from replacing bytes.
+        # Publish complete bytes without overwriting another request's destination.
+        # Both names are on the same filesystem. A crash can leave an extra
+        # partial name, but never an empty final file masquerading as a transfer.
         try:
-            with path.open("xb"):
-                pass
+            os.link(temporary, path)
         except FileExistsError:
             raise HTTPException(409, "Transfer is already being stored or needs recovery. Retry shortly with the same transfer ID.") from None
         published = True
-        os.replace(temporary, path)
         sync_directory(path.parent)
         row = ManagedFile(id=identifier, name=name, size=size, sha256=actual_hash, created_at=datetime.now(timezone.utc))
         session.add(row)

@@ -8,6 +8,8 @@ The base station stores expedition records and files. Its dashboard includes mis
 
 Install Docker with Compose. On Windows, start Docker Desktop with Linux containers enabled. Use a server with reliable power and persistent storage.
 
+File storage must support hard links (for example NTFS or ext4). FAT/exFAT storage is unsupported because uploads must publish complete files without overwriting an existing transfer.
+
 In the project folder, copy `deploy/.env.example` to `.env.base`. Edit it:
 
 ```text
@@ -41,6 +43,8 @@ For one base serving both networks, use the Internet configuration and the same 
 
 The database and API have no published ports. Access them through HTTPS. The existing development setup on localhost remains separate.
 
+The private API trusts forwarded client addresses from its gateway so sign-in limits apply per client. Caddy overwrites incoming forwarding headers. Keep the API port private; do not reuse this forwarding setting on a directly exposed API server.
+
 ## 3. Create accounts
 
 Create the first administrator from the server terminal. Password entry is hidden:
@@ -63,7 +67,7 @@ Create another user by replacing `station-admin` and choosing a role. Running `s
 docker compose --env-file .env.base -f compose.base.yaml exec api python -m app.accounts disable USERNAME
 ```
 
-Sessions expire after eight hours. Five unsuccessful attempts lock an account for 15 minutes. The server also limits sign-in attempts across accounts. Passwords and session tokens are not stored in plaintext. Base mode does not save mission records in the browser's offline database or send old offline reports.
+Sessions expire after eight hours. Five unsuccessful attempts lock an account for 15 minutes. The server also limits sign-in attempts to 30 per minute per client IP across accounts. Devices sharing one public IP share this limit. Passwords and session tokens are not stored in plaintext. Base mode does not save mission records in the browser's offline database or send old offline reports.
 
 All roles currently share station-wide read access. A confidential label does **not** create a separate permission group. Original files remain plaintext on the server; use encrypted server disks and protected backups. Separate per-mission clearance and MFA are not implemented.
 

@@ -1,7 +1,6 @@
 from datetime import datetime
 import os
 from contextlib import asynccontextmanager
-from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -11,6 +10,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .db import get_session
+from .config import get_settings
+from pydantic import ValidationError
 from .models import Alert, Assignment, CheckIn, Event, Mission, MissionSupply, Personnel, Position, Vehicle
 from .pmce import router as pmce_router
 from .logistics import router as logistics_router
@@ -26,14 +27,14 @@ from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, 
 
 @asynccontextmanager
 async def lifespan(app):
-    mode = os.getenv("PEM_MODE", "local")
-    if mode not in {"local", "base"}:
-        raise RuntimeError("PEM_MODE must be local or base")
-    if mode == "base":
-        origin = os.getenv("PEM_ORIGIN", "")
-        parsed = urlsplit(origin)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.path or parsed.query or parsed.fragment or parsed.username:
-            raise RuntimeError("Base mode requires PEM_ORIGIN=https://your-base-host without a trailing slash")
+    try:
+        app.state.settings = get_settings()
+    except ValidationError as exc:
+        # Configuration can contain credentials accidentally pasted into a URL.
+        # Report field locations and validation messages, never the raw inputs.
+        errors = "; ".join("PEM_" + ".".join(map(str, error["loc"])).upper() + ": " + error["msg"]
+                           for error in exc.errors(include_input=False, include_url=False))
+        raise RuntimeError(errors) from None
     yield
 
 
@@ -45,6 +46,9 @@ app = FastAPI(title="Polar Expedition Manager", version="0.3.0", dependencies=[D
 
 @app.middleware("http")
 async def private_responses(request, call_next):
+    settings = getattr(app.state, "settings", None)
+    if settings and settings.mode == "base" and request.url.path in {"/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}:
+        return JSONResponse(status_code=404, content={"detail": "Not found"}, headers={"Cache-Control": "no-store"})
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"

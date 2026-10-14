@@ -158,3 +158,71 @@ def test_disk_reserve_rejects_before_writing(client, monkeypatch):
     monkeypatch.setattr(files.shutil, "disk_usage", lambda path: usage(100, 99, 1))
     assert client.post("/api/files?name=full.txt", content=b"data").status_code == 507
     assert client.get("/api/files").json()["files"] == []
+
+
+def test_upload_publishes_complete_bytes_without_empty_placeholder(client, monkeypatch):
+    link = files.os.link
+    observed = []
+
+    def publish_complete(source, destination):
+        assert not destination.exists()
+        assert source.read_bytes() == b"complete upload"
+        link(source, destination)
+        observed.append(destination.read_bytes())
+
+    monkeypatch.setattr(files.os, "link", publish_complete)
+    response = client.post("/api/files?name=complete.txt", content=b"complete upload")
+    assert response.status_code == 201
+    assert observed == [b"complete upload"]
+    assert not list(files.root().rglob("*.partial"))
+
+
+def test_upload_collision_never_replaces_or_removes_existing_bytes(client):
+    from uuid import uuid4
+    identifier = uuid4()
+    path = files.location(identifier)
+    path.write_bytes(b"previous interrupted transfer")
+    response = client.post("/api/files?name=retry.txt", content=b"new upload",
+                           headers={"X-Transfer-ID": str(identifier)})
+    assert response.status_code == 409
+    assert path.read_bytes() == b"previous interrupted transfer"
+    assert not list(files.root().rglob("*.partial"))
+
+
+def test_failed_publication_cleans_up_owned_files(client, monkeypatch):
+    def fail_sync(folder):
+        raise OSError("disk failure")
+
+    monkeypatch.setattr(files, "sync_directory", fail_sync)
+    assert client.post("/api/files?name=failed.txt", content=b"payload").status_code == 503
+    assert list((files.root() / "originals").iterdir()) == []
+    assert client.get("/api/files").json()["files"] == []
+
+
+def test_storage_audit_does_not_create_missing_directories(database):
+    from sqlalchemy.orm import Session
+    from app.storage_check import inspect
+    base = files.storage_root()
+    assert not base.exists()
+    with Session(database) as session:
+        assert inspect(session) == []
+    assert not base.exists()
+
+
+def test_storage_audit_continues_after_unreadable_file(client, database, monkeypatch):
+    from sqlalchemy.orm import Session
+    from app.storage_check import inspect
+    first = upload(client)
+    second = upload(client)
+    original_open = Path.open
+
+    def open_checked(path, *args, **kwargs):
+        if str(path) == first["storage_path"]:
+            raise PermissionError("access denied")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_checked)
+    with Session(database) as session:
+        statuses = {item["id"]: item["status"] for item in inspect(session)}
+    assert statuses[first["id"]] == "unreadable"
+    assert statuses[second["id"]] == "verified"

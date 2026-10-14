@@ -28,6 +28,8 @@ services:
     environment:
       PEM_MODE: base
       PEM_ORIGIN: https://${BASE_HOST:?Set BASE_HOST to your base DNS name}
+      # The API has no published port. Only the private gateway may supply client IPs.
+      FORWARDED_ALLOW_IPS: "*"
       DATABASE_URL: postgresql+psycopg://polar:${BASE_DB_PASSWORD:?Set BASE_DB_PASSWORD}@db:5432/polar
       FILE_STORAGE_ROOT: /app/data/files
     volumes:

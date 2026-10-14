@@ -25,6 +25,13 @@ class BaseSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class LoginBudget(Base):
+    __tablename__ = "login_budgets"
+    client_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window: Mapped[int] = mapped_column(index=True)
+    attempts: Mapped[int]
+
+
 class BaseDevice(Base):
     __tablename__ = "base_devices"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
