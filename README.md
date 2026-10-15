@@ -2,6 +2,8 @@
 
 A basic app for managing polar expeditions and storing expedition files. You can upload files, set their importance, and create compressed or password-encrypted copies.
 
+**Start here:** [Install below](#install-and-run-on-windows) · [Base station setup](docs/BASE_STATION.md) · [Browse the code](#repository-guide) · [All guides](docs/README.md)
+
 **New here? [Open the visual quick guide (PDF)](output/pdf/Polar-Expedition-Manager-Quick-Guide.pdf)** - screenshots, arrows and short steps. [Download PDF](https://github.com/adithmv/SIH26062/raw/refs/heads/pmce-backend/output/pdf/Polar-Expedition-Manager-Quick-Guide.pdf).
 
 ## Install and run on Windows
@@ -102,4 +104,14 @@ For the separate base station with sign-in, permissions and HTTPS, follow [Base 
 - **Port 8000 or 5173 already in use:** an app may already be running. Stop its terminal with Ctrl+C before starting another instance.
 - **App cannot reach the backend:** check that the first PowerShell window is still running. Open http://127.0.0.1:8000/api/health; it should show `"status":"ok"`.
 
-More details: [File management](docs/DATA_MANAGEMENT.md) · [Backend and PMCE](backend/README.md).
+## Repository guide
+
+| Folder | What is inside |
+| --- | --- |
+| [backend](backend/) | API, database and delivery logic. Start with its [code guide](backend/README.md). |
+| [frontend](frontend/) | Simple web interface. Start with its [code guide](frontend/README.md). |
+| [deploy](deploy/) | Base-server configuration and backup tool. |
+| [docs](docs/README.md) | User and developer guides. |
+| [output/pdf](output/pdf/) | Downloadable visual manual. |
+
+`compose.yaml` runs the local development stack. `compose.base.yaml` runs the base station; `compose.base.lan.yaml` adds private-LAN HTTPS settings. Follow the base setup guide before using them.
