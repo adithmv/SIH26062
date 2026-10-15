@@ -221,3 +221,35 @@ def test_position_receipt_replay_does_not_duplicate(client, clock):
     repeated = action(client, mission, "positions", **body).json()
     assert repeated["last_position"]["id"] == first["last_position"]["id"]
     assert repeated["version"] == first["version"]
+
+
+def test_resource_check_uses_one_conflict_query(database, clock):
+    from sqlalchemy import event
+    from app.operations import resources
+
+    with Session(database) as session:
+        for index in range(20):
+            session.add(Mission(code=f"UNRELATED-{index}", name="Other mission", destination="Ridge",
+                                station="Maitri", vehicle_id=uid("vehicle-0"), departure=clock[0],
+                                expected_check_in=clock[0] + timedelta(hours=1),
+                                expected_return=clock[0] + timedelta(hours=4)))
+        session.commit()
+        statements = []
+
+        def capture(connection, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        event.listen(database, "before_cursor_execute", capture)
+        try:
+            resources(session, uid("vehicle-1"), [uid("person-2")], clock[0], clock[0] + timedelta(hours=4))
+        finally:
+            event.remove(database, "before_cursor_execute", capture)
+        assert len(statements) == 3
+
+
+def test_personnel_conflict_is_detected_across_different_vehicles(client, clock):
+    mission, body = create(client, clock)
+    response = client.post("/api/missions", json={**body, "code": "OTHER-VEHICLE",
+                                                "vehicle_id": str(uid("vehicle-0"))})
+    assert response.status_code == 409
+    assert mission["code"] in response.json()["detail"]

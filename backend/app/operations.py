@@ -113,10 +113,11 @@ def resources(session, vehicle_id, personnel_ids, departure, expected_return, ex
                                       (Mission.departure < expected_return) & (Mission.expected_return > departure)))
     else:
         overlaps = overlaps.where(Mission.departure < expected_return, Mission.expected_return > departure)
-    for other in session.scalars(overlaps):
-        assigned = set(session.scalars(select(Assignment.personnel_id).where(Assignment.mission_id == other.id)))
-        if other.vehicle_id == vehicle_id or assigned.intersection(personnel_ids):
-            raise HTTPException(409, f"Personnel or vehicle already assigned to {other.code} during this period.")
+    shared_people = select(Assignment.mission_id).where(Assignment.personnel_id.in_(personnel_ids))
+    conflict = session.scalar(overlaps.where(or_(Mission.vehicle_id == vehicle_id, Mission.id.in_(shared_people)))
+                              .order_by(Mission.code).limit(1))
+    if conflict:
+        raise HTTPException(409, f"Personnel or vehicle already assigned to {conflict.code} during this period.")
 
 
 def assign(session, mission, ids):
