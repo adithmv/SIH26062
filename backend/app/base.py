@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from .db import get_session
-from .files import root
+from .files import FileRoute, root
 from .models import BaseDevice, ManagedFile, PMCEReceipt
 from .security import enabled
 
-router = APIRouter(prefix="/api/base", tags=["Base station"])
+router = APIRouter(prefix="/api/base", tags=["Base station"], route_class=FileRoute)
 
 
 @router.get("/status")

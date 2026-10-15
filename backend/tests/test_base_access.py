@@ -124,6 +124,20 @@ def test_expired_session_does_not_authorize(base, database):
     assert base.get("/api/missions").status_code == 401
 
 
+def test_base_status_reports_unavailable_storage(base, monkeypatch):
+    import app.base as base_routes
+    assert login(base).status_code == 200
+
+    def unavailable():
+        raise PermissionError("private storage path")
+
+    monkeypatch.setattr(base_routes, "root", unavailable)
+    response = base.get("/api/base/status")
+    assert response.status_code == 503
+    assert "folder permissions" in response.json()["detail"]
+    assert "private storage path" not in response.text
+
+
 def test_legacy_password_upgrades_only_after_success(base, database):
     import hashlib
     salt = "12" * 16
