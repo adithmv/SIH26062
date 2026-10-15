@@ -25,11 +25,12 @@ export default function ConnectionPanel({ onStatus }: { onStatus: (status: Conne
   useEffect(() => {
     if (!active) return;
     const current = ++generation.current;
-    const controller = new AbortController();
+    let controller: AbortController;
     let timer: ReturnType<typeof setTimeout>;
     let attempt = 0;
     let cancelled = false;
     async function probe() {
+      controller = new AbortController();
       setStatus(attempt++ ? "Checking" : "Connecting"); setError("");
       const timeout = setTimeout(() => controller.abort(), 12000);
       try {
@@ -42,10 +43,10 @@ export default function ConnectionPanel({ onStatus }: { onStatus: (status: Conne
         if (cancelled || current !== generation.current) return;
         setResult(null);
         setStatus("Unreachable");
-        setError(controller.signal.aborted ? "Check timed out. Use Check now to retry." : e instanceof TypeError ? "Cannot reach this device's backend to check the connection." : e instanceof Error ? e.message : "Connection check failed.");
+        setError(controller.signal.aborted ? "Check timed out. Automatic checks will retry if enabled." : e instanceof TypeError ? "Cannot reach this device's backend to check the connection." : e instanceof Error ? e.message : "Connection check failed.");
       } finally {
         clearTimeout(timeout);
-        if (!cancelled && current === generation.current && active!.interval > 0 && !controller.signal.aborted) timer = setTimeout(probe, active!.interval * 1000);
+        if (!cancelled && current === generation.current && active!.interval > 0) timer = setTimeout(probe, active!.interval * 1000);
       }
     }
     void probe();

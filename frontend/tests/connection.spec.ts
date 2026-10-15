@@ -63,3 +63,25 @@ test("automatic checks update the status when the other device stops responding"
   await page.clock.runFor(31000);
   expect(checks).toBe(2);
 });
+
+test("automatic checks recover after a request times out", async ({ page }) => {
+  await page.clock.install();
+  let checks = 0;
+  await page.route("**/api/connection/check", async route => {
+    checks++;
+    if (checks === 1) return;
+    await route.fulfill({ json: { address: "http://localhost:8000", reachable: true, message: "Health check passed", checked_at: new Date().toISOString(), response_ms: 5, version: "0.3.0" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Data Management", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Device connection" });
+  await panel.getByLabel("Other device address").fill("http://localhost:8000");
+  await panel.getByRole("combobox", { name: "Automatic checks" }).selectOption("15");
+  await panel.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect.poll(() => checks).toBe(1);
+  await page.clock.runFor(12001);
+  await expect(panel.getByRole("status")).toHaveText("Unreachable");
+  await page.clock.runFor(15001);
+  await expect(panel.getByRole("status")).toHaveText("Reachable");
+  expect(checks).toBe(2);
+});
