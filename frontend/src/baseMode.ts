@@ -1,4 +1,4 @@
-// Set before mounting the dashboard; base sessions never read field-device caches.
+// Base sessions do not use field caches.
 export let baseMode = false;
 export function setBaseMode(value: boolean) { baseMode = value; }
 export let baseUser: { username: string; role: string } | null = null;
