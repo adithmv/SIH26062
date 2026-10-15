@@ -20,6 +20,9 @@ venv/
 # Local databases and test artifacts
 *.sqlite
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+/tmp/
 playwright-report/
 test-results/
 
