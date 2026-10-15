@@ -1,3 +1,4 @@
+import pytest
 from uuid import UUID, uuid4
 from datetime import timedelta
 
@@ -218,3 +219,20 @@ def test_waiting_event_does_not_hide_due_event_at_batch_limit(client, monkeypatc
     client.post("/api/pmce/outbox", json=safety)
     result = client.post("/api/pmce/plan", json={"mode": "broadband", "limit": 1}).json()
     assert result[0]["id"] == safety["id"]
+
+@pytest.mark.parametrize('address', ['', 'http://', 'https://user:secret@base.test', 'https://base.test/api', 'https://base.test?token=secret', 'https://base.test#fragment', 'https://base.test:0', 'https://base.test:99999', 'https://base.test\n', 'https://base.test\\other'])
+def test_invalid_central_address_keeps_event_unattempted(client, monkeypatch, address):
+    body = event()
+    client.post('/api/pmce/outbox', json=body)
+    monkeypatch.setenv('PMCE_CENTRAL_URL', address)
+    response = client.post('/api/pmce/sync', json={'mode': 'broadband'})
+    assert response.status_code == 503
+    assert 'secret' not in response.text
+    row = client.get('/api/pmce/outbox').json()[0]
+    assert row['attempts'] == 0
+    assert row['status'] == 'pending'
+
+@pytest.mark.parametrize('address, expected', [('https://base.test/', 'https://base.test'), ('http://127.0.0.1:8000', 'http://127.0.0.1:8000'), ('https://[::1]:8443/', 'https://[::1]:8443')])
+def test_central_origin_preserves_port_and_ipv6(monkeypatch, address, expected):
+    monkeypatch.setenv('PMCE_CENTRAL_URL', address)
+    assert pmce.central_url() == expected

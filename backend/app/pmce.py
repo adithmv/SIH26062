@@ -4,6 +4,7 @@ import os
 from datetime import timedelta, timezone
 from typing import Literal
 from uuid import UUID, uuid4
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -151,10 +152,19 @@ def plan(body: SyncOptions, session: Session = Depends(get_session)):
 
 
 def central_url():
-    url = os.getenv("PMCE_CENTRAL_URL", "").rstrip("/")
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(503, "Set PMCE_CENTRAL_URL to the central API origin.")
-    return url
+    value = os.getenv("PMCE_CENTRAL_URL", "")
+    try:
+        if any(character.isspace() or ord(character) < 32 for character in value) or "\\" in value:
+            raise ValueError()
+        url = urlsplit(value)
+        if (url.scheme not in {"http", "https"} or not url.hostname
+                or url.username is not None or url.password is not None
+                or url.path not in {"", "/"} or url.query or url.fragment
+                or (url.port is not None and not 1 <= url.port <= 65535)):
+            raise ValueError()
+        return f"{url.scheme}://{url.netloc}"
+    except ValueError:
+        raise HTTPException(503, "Set PMCE_CENTRAL_URL to an HTTP or HTTPS origin without credentials, a path or a query.") from None
 
 
 def acquire_sync(session):
