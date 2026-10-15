@@ -50,3 +50,11 @@ def test_timeout(client, monkeypatch):
     assert not result["reachable"]
     assert "timed out" in result["message"]
     assert "private diagnostic" not in result["message"]
+
+@pytest.mark.parametrize('address', ['http://local\nhost:8000', 'http://local\thost:8000', 'http://localhost\\other', 'http://local host'])
+def test_ambiguous_connection_address_is_rejected(client, address):
+    assert client.post('/api/connection/check', json={'address': address}).status_code == 400
+
+@pytest.mark.parametrize('address, expected', [(' http://localhost:8000/ ', 'http://localhost:8000'), ('https://[::1]:8443/', 'https://[::1]:8443'), ('http://10.0.0.1', 'http://10.0.0.1')])
+def test_connection_origin_normalization(address, expected):
+    assert connections.normalize(address) == expected

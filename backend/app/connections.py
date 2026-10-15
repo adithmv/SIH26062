@@ -12,6 +12,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/connection", tags=["Connection"])
+PRIVATE_NETWORKS = tuple(ipaddress.ip_network(net) for net in (
+    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7",
+))
 
 
 class Check(BaseModel):
@@ -20,7 +23,10 @@ class Check(BaseModel):
 
 def normalize(address):
     try:
-        url = urlsplit(address.strip())
+        address = address.strip()
+        if any(character.isspace() or ord(character) < 32 for character in address) or "\\" in address:
+            raise ValueError()
+        url = urlsplit(address)
         if url.scheme not in {"http", "https"} or url.username or url.password or url.query or url.fragment or url.path not in {"", "/"}:
             raise ValueError()
         host = url.hostname
@@ -29,8 +35,7 @@ def normalize(address):
             raise ValueError()
         if host != "localhost":
             ip = ipaddress.ip_address(host)
-            allowed = [ipaddress.ip_network(net) for net in ("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7")]
-            if not any(ip in net for net in allowed):
+            if not any(ip in net for net in PRIVATE_NETWORKS):
                 raise ValueError()
         host = f"[{host}]" if ":" in host else host
         return f"{url.scheme}://{host}" + (f":{port}" if port else "")
