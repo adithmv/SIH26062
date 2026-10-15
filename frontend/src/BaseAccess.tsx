@@ -11,13 +11,16 @@ export default function BaseAccess() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const loaded = useRef(false);
+  const generation = useRef(0);
   const refresh = useCallback(async () => {
+    const current = ++generation.current;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch("/api/auth/session", { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Cannot check base access. Try again.");
       const value: Session = await response.json();
+      if (current !== generation.current) return;
       if (import.meta.env.VITE_BASE_MODE === "true" && value.mode !== "base") throw new Error("This dashboard requires a base server. Check server configuration.");
       setBaseMode(value.mode === "base");
       setBaseUser(value.user);
@@ -25,7 +28,8 @@ export default function BaseAccess() {
       loaded.current = true;
       setError("");
     } catch (e) {
-      // Only the development/field build supports offline startup. The deployed base build fails closed.
+      if (current !== generation.current) return;
+      // Only field builds allow offline startup.
       if (import.meta.env.VITE_BASE_MODE !== "true" && !loaded.current) {
         setBaseMode(false); setSession({ mode: "local", user: null });
       } else setError(e instanceof Error ? e.message : "Cannot reach the base server.");
@@ -33,9 +37,13 @@ export default function BaseAccess() {
   }, []);
   useEffect(() => {
     const start = setTimeout(() => { void refresh(); }, 0);
-    const expired = () => setSession({ mode: "base", user: null });
+    const expired = () => {
+      ++generation.current;
+      setBaseUser(null);
+      setSession({ mode: "base", user: null });
+    };
     window.addEventListener("base-session-expired", expired);
-    return () => { clearTimeout(start); window.removeEventListener("base-session-expired", expired); };
+    return () => { ++generation.current; clearTimeout(start); window.removeEventListener("base-session-expired", expired); };
   }, [refresh]);
   useEffect(() => {
     if (session?.mode !== "base" || !session.user?.username) return;
@@ -57,6 +65,8 @@ export default function BaseAccess() {
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok && response.status !== 401) throw new Error("Cannot sign out. Retry when connected.");
+      ++generation.current;
+      setBaseUser(null);
       setSession({ mode: "base", user: null });
     } catch (e) { setError(e instanceof Error ? e.message : "Cannot sign out."); }
     finally { setBusy(false); }

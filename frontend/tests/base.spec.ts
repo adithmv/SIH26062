@@ -39,3 +39,27 @@ test("base viewer cannot see resource creation controls", async ({ page }) => {
   await expect(page.getByText("Add stock item", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Adjust stock" })).toHaveCount(0);
 });
+
+test("an older session check cannot reopen the dashboard after logout", async ({ page }) => {
+  await page.clock.install();
+  let checks = 0;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/auth/session", async route => {
+    checks++;
+    if (checks > 1) await gate;
+    await route.fulfill({ json: { mode: "base", user: { username: "test-operator", role: "operator" } } });
+  });
+  await page.route("**/api/auth/logout", route => route.fulfill({ json: { signed_out: true } }));
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+  await page.clock.runFor(60001);
+  await expect.poll(() => checks).toBe(2);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Base station sign-in" })).toBeVisible();
+  const response = page.waitForResponse("**/api/auth/session");
+  release();
+  await response;
+  await expect(page.getByRole("heading", { name: "Base station sign-in" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main navigation" })).toHaveCount(0);
+});
