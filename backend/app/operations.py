@@ -31,9 +31,9 @@ def require_mission(session, identity):
 
 def summary(session, mission, now):
     check_in = session.scalar(select(CheckIn).where(CheckIn.mission_id == mission.id)
-                              .order_by(CheckIn.observed_at.desc(), CheckIn.id).limit(1))
+                              .order_by(CheckIn.observed_at.desc(), CheckIn.received_at.desc(), CheckIn.id).limit(1))
     position = session.scalar(select(Position).where(Position.mission_id == mission.id)
-                              .order_by(Position.observed_at.desc(), Position.id).limit(1))
+                              .order_by(Position.observed_at.desc(), Position.received_at.desc(), Position.id).limit(1))
     contact_times = [utc(item.observed_at) for item in [check_in, position] if item]
     last_contact = max(contact_times) if contact_times else None
     due = utc(mission.expected_check_in)
@@ -61,10 +61,10 @@ def detail(session, mission, now):
     people = session.scalars(select(Personnel).join(Assignment)
                              .where(Assignment.mission_id == mission.id).order_by(Personnel.name))
     position = session.scalar(select(Position).where(Position.mission_id == mission.id)
-                              .order_by(Position.observed_at.desc(), Position.id).limit(1))
+                              .order_by(Position.observed_at.desc(), Position.received_at.desc(), Position.id).limit(1))
     age = max(0, int((now - utc(position.observed_at)).total_seconds() // 60)) if position else None
     check_ins = session.scalars(select(CheckIn).where(CheckIn.mission_id == mission.id)
-                                .order_by(CheckIn.observed_at.desc(), CheckIn.id))
+                                .order_by(CheckIn.observed_at.desc(), CheckIn.received_at.desc(), CheckIn.id))
     state = summary(session, mission, now)
     return {**state, "personnel": [person_summary(session, p, now) for p in people],
             "vehicle": record(session.get(Vehicle, mission.vehicle_id)),

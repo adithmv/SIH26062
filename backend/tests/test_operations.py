@@ -253,3 +253,22 @@ def test_personnel_conflict_is_detected_across_different_vehicles(client, clock)
                                                 "vehicle_id": str(uid("vehicle-0"))})
     assert response.status_code == 409
     assert mission["code"] in response.json()["detail"]
+
+
+def test_equal_observation_times_show_latest_received_report(client, clock, database):
+    from app.models import CheckIn, Position
+
+    mission, _ = start(client, clock)
+    observed = clock[0]
+    with Session(database) as session:
+        for index, identity in enumerate([UUID(int=1), UUID(int=2)]):
+            received = observed + timedelta(minutes=index)
+            session.add(Position(id=identity, mission_id=UUID(mission["id"]), observed_at=observed,
+                                 received_at=received, source="radio", latitude=-70 - index, longitude=12))
+            session.add(CheckIn(id=identity, mission_id=UUID(mission["id"]), observed_at=observed,
+                                received_at=received, source="radio", note=f"Update {index}"))
+        session.commit()
+    clock[0] += timedelta(minutes=2)
+    current = client.get("/api/missions/" + mission["id"]).json()
+    assert current["last_position"]["latitude"] == -71
+    assert [report["note"] for report in current["check_ins"]] == ["Update 1", "Update 0"]
