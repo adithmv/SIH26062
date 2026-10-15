@@ -169,7 +169,7 @@ export async function saveReport(
     createdAt: new Date().toISOString(),
   };
   try {
-    // The observation and its delivery entry succeed together or neither is saved.
+    // Save the report and delivery together.
     await db.transaction("rw", db.reports, db.outbox, async () => {
       await db.reports.add(record);
       await db.outbox.add({ ...record, state: "pending" });
@@ -215,8 +215,8 @@ export async function sendPending(retryId?: string, automatic = false) {
           attempts: 0,
           retryAt: 0,
         });
-      const records = await db.outbox.orderBy("createdAt").toArray();
-      // Safety check-ins precede location reports; timestamps break ties deterministically.
+      const records = await db.outbox.where("state").anyOf("pending", "sending", "failed").toArray();
+      // Send check-ins first, then oldest reports.
       records.sort(
         (a, b) =>
           (a.kind === "check-ins" ? 1 : 2) - (b.kind === "check-ins" ? 1 : 2) ||
@@ -235,7 +235,7 @@ export async function sendPending(retryId?: string, automatic = false) {
             ((entry.retryAt ?? 0) > Date.now() || (entry.attempts ?? 0) >= 5))
         )
           continue;
-        // Read again: preceding acknowledgements may have advanced the version for this local sequence.
+        // Earlier receipts may have updated this version.
         const current = await db.outbox.get(entry.id);
         if (!current || current.state === "acknowledged") continue;
         await db.outbox.update(entry.id, {
@@ -262,7 +262,7 @@ export async function sendPending(retryId?: string, automatic = false) {
               value: result,
               savedAt: new Date().toISOString(),
             });
-            // Only advance versions caused by our own just-acknowledged write; never resolve an external conflict silently.
+            // Advance only our own writes, not external conflicts.
             if (result.version === current.body.version + 1) {
               const waiting = await db.outbox
                 .where("missionId")
