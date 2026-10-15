@@ -299,8 +299,9 @@ test("old simulator settings do not affect real requests", async ({ page, reques
   await expect(page.getByLabel("Connection profile")).toHaveCount(0);
   await expect(page.getByLabel("Simulate request failures")).toHaveCount(0);
   await checkIn(page, "Real connection report");
+  await expect.poll(async () => (await (await request.get("/api/missions/" + mission.id)).json()).check_ins.length,
+    { timeout: 15000 }).toBe(1);
   await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({ timeout: 15000 });
-  expect((await (await request.get("/api/missions/" + mission.id)).json()).check_ins).toHaveLength(1);
 });
 
 test.afterEach(async ({ request }) => {
