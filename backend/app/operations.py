@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -67,7 +67,7 @@ def detail(session, mission, now):
     check_ins = session.scalars(select(CheckIn).where(CheckIn.mission_id == mission.id)
                                 .order_by(CheckIn.observed_at.desc(), CheckIn.received_at.desc(), CheckIn.id))
     state = summary(session, mission, now)
-    return {**state, "personnel": [person_summary(session, p, now) for p in people],
+    return {**state, "personnel": people_summaries(session, list(people), now),
             "vehicle": record(session.get(Vehicle, mission.vehicle_id)),
             "last_position": record(position) if position else None,
             "position_age_minutes": age,
@@ -76,7 +76,7 @@ def detail(session, mission, now):
 
 
 def claim_version(session, mission, version):
-    # Atomic compare-and-swap also protects SQLite, which has no SELECT FOR UPDATE.
+    # Reject changes based on an outdated version.
     result = session.execute(update(Mission).where(Mission.id == mission.id, Mission.version == version)
                              .values(version=Mission.version + 1).execution_options(synchronize_session=False))
     if result.rowcount != 1:
@@ -100,7 +100,7 @@ def commit(session):
 
 
 def resources(session, vehicle_id, personnel_ids, departure, expected_return, exclude=None, starting=False):
-    # Consistent resource lock order serializes competing reservations on PostgreSQL.
+    # Lock resources in a fixed order.
     vehicle = session.scalar(select(Vehicle).where(Vehicle.id == vehicle_id).with_for_update())
     people = list(session.scalars(select(Personnel).where(Personnel.id.in_(personnel_ids))
                                   .order_by(Personnel.id).with_for_update()))
@@ -138,11 +138,19 @@ def validate_observation(mission, observed_at, now):
         raise HTTPException(422, "Observation time cannot precede mission departure.")
 
 
-def person_summary(session, person, now):
-    active = session.scalar(select(Mission).join(Assignment)
-                            .where(Assignment.personnel_id == person.id, Mission.status == "in_field"))
-    return {**record(person), "operational_status": summary(session, active, now)["operational_status"] if active else "at_station",
-            "active_mission_id": active.id if active else None, "active_mission_code": active.code if active else None}
+def people_summaries(session, people, now):
+    if not people:
+        return []
+    contacts = [select(func.max(model.observed_at)).where(model.mission_id == Mission.id)
+                .correlate(Mission).scalar_subquery() for model in (CheckIn, Position)]
+    rows = session.execute(select(Assignment.personnel_id, Mission, *contacts).join(Mission)
+                           .where(Assignment.personnel_id.in_([person.id for person in people]),
+                                  Mission.status == "in_field"))
+    active = {person_id: summary(session, mission, now, (check_in, position))
+              for person_id, mission, check_in, position in rows}
+    return [{**record(person), "operational_status": active.get(person.id, {}).get("operational_status", "at_station"),
+             "active_mission_id": active.get(person.id, {}).get("id"),
+             "active_mission_code": active.get(person.id, {}).get("code")} for person in people]
 
 
 def observation_replay(session, mission, body, kind):

@@ -293,3 +293,29 @@ def test_mission_list_reads_contact_times_in_one_query(client, clock, database):
     for mission in response.json():
         detail = client.get("/api/missions/" + mission["id"]).json()
         assert all(detail[key] == value for key, value in mission.items())
+
+
+def test_personnel_list_batches_active_mission_status(client, clock, database):
+    from sqlalchemy import event
+
+    statements = []
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(database, "before_cursor_execute", capture)
+    try:
+        response = client.get("/api/personnel")
+    finally:
+        event.remove(database, "before_cursor_execute", capture)
+    assert response.status_code == 200
+    assert len(statements) == 2
+    people = {person["id"]: person for person in response.json()}
+    current = client.get("/api/missions/" + str(uid("mission-0"))).json()
+    for identity in ["person-0", "person-1"]:
+        assert people[str(uid(identity))]["operational_status"] == current["operational_status"]
+        assert people[str(uid(identity))]["active_mission_id"] == current["id"]
+    for identity in ["person-2", "person-3"]:
+        assert people[str(uid(identity))]["operational_status"] == "at_station"
+        assert people[str(uid(identity))]["active_mission_id"] is None

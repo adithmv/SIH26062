@@ -103,7 +103,7 @@ def assign_asset(asset_id: UUID, body: AssetAssignment, session: Session = Depen
     asset = session.get(Asset, asset_id)
     if asset is None:
         raise HTTPException(404, "Asset not found.")
-    # Lock affected missions in stable order before modifying their equipment.
+    # Lock missions in a fixed order.
     missions = []
     for identity in sorted({m for m in (asset.mission_id, body.mission_id) if m}, key=str):
         mission = require_mission(session, identity)

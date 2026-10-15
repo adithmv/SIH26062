@@ -20,7 +20,7 @@ from .connections import router as connection_router
 from .security import authorize, router as security_router
 from .base import router as base_router
 from .operations import (assign, audit, claim_version, commit, detail, now_utc, record,
-                         require_field, require_mission, resources, summary, utc, validate_observation, person_summary, observation_replay)
+                         require_field, require_mission, resources, summary, utc, validate_observation, people_summaries, observation_replay)
 from .schemas import (CheckInInput, CompletionInput, EscalationInput, EventOut, HealthOut,
                       MissionDetailOut, MissionEdit, MissionOut, MissionPlan, PersonOut,
                       PositionInput, VehicleOut, VersionInput)
@@ -30,8 +30,7 @@ async def lifespan(app):
     try:
         app.state.settings = get_settings()
     except ValidationError as exc:
-        # Configuration can contain credentials accidentally pasted into a URL.
-        # Report field locations and validation messages, never the raw inputs.
+        # Keep configuration secrets out of errors.
         errors = "; ".join("PEM_" + ".".join(map(str, error["loc"])).upper() + ": " + error["msg"]
                            for error in exc.errors(include_input=False, include_url=False))
         raise RuntimeError(errors) from None
@@ -208,7 +207,8 @@ def complete(mission_id: UUID, body: CompletionInput, session: Session = Depends
 
 @app.get("/api/personnel", response_model=list[PersonOut])
 def personnel(session: Session = Depends(get_session), now: datetime = Depends(now_utc)):
-    return [person_summary(session, person, now) for person in session.scalars(select(Personnel).order_by(Personnel.name))]
+    people = list(session.scalars(select(Personnel).order_by(Personnel.name)))
+    return people_summaries(session, people, now)
 
 
 @app.get("/api/vehicles", response_model=list[VehicleOut])

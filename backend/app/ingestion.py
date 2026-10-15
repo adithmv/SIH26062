@@ -83,7 +83,7 @@ def apply_event(session, body, mission, now):
                                          version=Cargo.version + 1).execution_options(synchronize_session=False))
         if result.rowcount != 1:
             raise HTTPException(409, "Cargo changed. Review current cargo status.")
-    # mission_log and report are retained in the immutable event history.
+    # Logs and reports stay in event history.
 
 
 def ingest(session, body, now):
@@ -95,7 +95,7 @@ def ingest(session, body, now):
                 raise HTTPException(409, "Event ID already exists with different contents.")
             return existing
         mission = require_mission(session, body.mission_id)
-        # The mission version update serializes event effects with lifecycle edits.
+        # Lock the mission before applying changes.
         claim_version(session, mission, mission.version)
         require_field(mission)
         validate_observation(mission, body.occurred_at, now)
@@ -111,7 +111,7 @@ def ingest(session, body, now):
         return receipt
     except (HTTPException, IntegrityError) as exc:
         session.rollback()
-        # Another sender may have committed the same event while we waited.
+        # Check for a receipt from another sender.
         existing = session.get(PMCEReceipt, body.id)
         if existing and existing.event == event:
             return existing
