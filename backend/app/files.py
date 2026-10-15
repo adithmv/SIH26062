@@ -167,9 +167,7 @@ async def upload(request: Request, name: str, session: Session = Depends(get_ses
                 verify_data(read(path), existing, 409)
                 return describe(existing, session)
             raise HTTPException(409, "This transfer ID belongs to a different file. Use a new ID.")
-        # Publish complete bytes without overwriting another request's destination.
-        # Both names are on the same filesystem. A crash can leave an extra
-        # partial name, but never an empty final file masquerading as a transfer.
+        # Publish complete bytes without overwriting an existing transfer.
         try:
             os.link(temporary, path)
         except FileExistsError:

@@ -57,7 +57,7 @@ def verify_and_update(password, encoded):
         try:
             return PASSWORD_HASHER.verify_and_update(password, encoded)
         except (UnknownHashError, ValueError, TypeError):
-            # A damaged record must fail sign-in rather than expose a server error.
+            # Reject damaged password records safely.
             PASSWORD_HASHER.verify(password, DUMMY_HASH)
             return False, None
 
@@ -147,7 +147,7 @@ def consume_login_budget(request, session):
         "attempts": case((LoginBudget.window != window, 1), else_=LoginBudget.attempts + 1),
     }, where=or_(LoginBudget.window != window, LoginBudget.attempts < 30)).returning(LoginBudget.attempts)
     count = session.execute(statement).scalar_one_or_none()
-    # Commit before password work: multiple workers share the same durable budget.
+    # Share the budget before password work starts.
     session.commit()
     if count is None:
         retry = max(1, 60 - int(timestamp % 60))
@@ -170,7 +170,7 @@ def login(body: Login, request: Request, response: Response, session: Session = 
     origin_check(request)
     consume_login_budget(request, session)
     account = session.scalar(select(BaseAccount).where(BaseAccount.username == body.username.strip().lower()).with_for_update())
-    # Unknown users still perform the password work; responses do not reveal account existence.
+    # Use the same password work for unknown users.
     valid, updated_hash = verify_and_update(body.password.get_secret_value(), account.password_hash if account else DUMMY_HASH)
     locked = account and account.locked_until and utc(account.locked_until) > now()
     if not account or not account.active or locked or not valid:

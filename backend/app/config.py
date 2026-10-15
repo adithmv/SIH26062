@@ -25,11 +25,11 @@ class Settings(BaseSettings):
                 or url.path not in (None, "/") or url.query is not None or url.fragment is not None
                 or not url.port or "\\" in self.origin):
             raise ValueError(message)
-        # Match the browser's Origin serialization, including default-port removal.
+        # Match the browser's Origin format.
         self.origin = str(url).rstrip("/")
         return self
 
 
 def get_settings():
-    # Do not implicitly read a .env file from an arbitrary working directory.
+    # Read environment variables only.
     return Settings(_env_file=None)
