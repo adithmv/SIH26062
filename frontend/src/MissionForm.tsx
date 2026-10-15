@@ -54,7 +54,7 @@ export default function MissionForm({
         expected_return: toISO(draft.expected_return),
         ...(initial ? { version } : {}),
       };
-      // Preserve the exact timestamp while editing an active mission's immutable departure.
+      // Keep the original departure timestamp.
       if (locked && initial) body.departure = initial.departure;
       onSaved(
         await request<MissionDetail>(

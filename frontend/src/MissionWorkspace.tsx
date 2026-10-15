@@ -20,7 +20,7 @@ function ActionForm({
   onSaved: (m: MissionDetail) => void;
   onCancel: () => void;
 }) {
-  // Keep the version captured when this form opens; background refresh must not silently resolve a conflicting edit.
+  // Keep the version captured when editing starts.
   const [version] = useState(mission.version);
   const [observed, setObserved] = useState(
     new Date().toISOString().slice(0, 23),

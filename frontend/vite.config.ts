@@ -34,7 +34,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/api\//],
         clientsClaim: true,
-        // Do not activate new application code underneath an open field report.
+        // Do not update the app while a report is open.
         skipWaiting: false,
         cleanupOutdatedCaches: true,
       },
