@@ -1,6 +1,6 @@
-# Phase 2 API and operational rules
+# Mission API and operational rules
 
-Base path: /api. Interactive schemas are at /docs. Fresh installations contain no records. The existing frontend captures check-ins and positions offline; the separate PMCE field service supports priority synchronization and operational ingestion. See PMCE.md for new backend APIs and OFFLINE.md for the existing browser delivery path. This prototype has no authentication or real emergency dispatch integration.
+Base path: /api. Interactive schemas are at /docs in local mode only. Fresh installations contain no records. The frontend captures check-ins and positions offline; the separate PMCE field service supports priority synchronization. See [PMCE](PMCE.md) and [offline work](OFFLINE.md). Base mode requires sign-in or an authorized device credential; local mode has no sign-in. See [base setup](BASE_STATION.md) for access rules. Real emergency dispatch is not integrated.
 
 ## Endpoints
 

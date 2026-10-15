@@ -1,29 +1,39 @@
-# PMCE backend
+# Backend
 
-## Start central API
+For installation, follow the [main README](../README.md). For sign-in and HTTPS, use the [base station guide](../docs/BASE_STATION.md).
 
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --port 8000
-```
+## Find the code
 
-Open http://127.0.0.1:8000/docs. Default database: `operations.sqlite3`. Fresh installations are empty. No sample data is loaded.
+| File in `app/` | Purpose |
+| --- | --- |
+| `main.py`, `operations.py` | API routes and mission rules |
+| `logistics.py` | Cargo, equipment, inventory and alerts |
+| `files.py`, `storage_check.py` | File storage, encryption and integrity checks |
+| `connections.py` | Backend connection checks |
+| `pmce.py`, `pmce_worker.py` | Event queue and delivery |
+| `ingestion.py`, `transport.py` | Receive and process events |
+| `security.py`, `accounts.py`, `devices.py` | Sign-in, permissions and device credentials |
+| `models.py`, `db.py` | Database tables and connections |
+| `schemas.py`, `event_schemas.py` | Input and response formats |
+| `config.py`, `base.py` | Settings and base status |
+
+Database upgrades are in `migrations/`. Tests are in `tests/`.
+
+## Local API
+
+Use the installation commands in the main README. Open http://127.0.0.1:8000/docs for interactive API documentation in local mode. Base mode disables that page. Default database: `operations.sqlite3`. Fresh installations are empty.
 
 Create personnel and vehicles first, then plan a mission. Register equipment, cargo and stock; assign/link them before departure. Stock starts at zero; enter the opening balance as an inventory adjustment.
 
 ## Start field API
 
-In another terminal, activate the same environment and run:
+After starting the local API, open another PowerShell window in `backend/` and run:
 
 ```powershell
 $env:DATABASE_URL = "sqlite:///./field.sqlite3"
 $env:PMCE_CENTRAL_URL = "http://127.0.0.1:8000"
-alembic upgrade head
-uvicorn app.main:app --port 8001
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
 Capture field events through `/api/pmce/outbox`, using actual central mission/resource IDs. This endpoint persists locally without contacting central. Central receipt and operational changes commit together.
@@ -42,31 +52,19 @@ Call `/api/pmce/sync` with `mode`, optional `byte_budget`, `limit` and `compress
 For automatic passes, run in a third terminal with the same field database and central URL:
 
 ```powershell
-python -m app.pmce_worker --mode limited --interval 5 --byte-budget 2048 --compression
+.\.venv\Scripts\python.exe -m app.pmce_worker --mode limited --interval 5 --byte-budget 2048 --compression
 ```
 
 Stop with Ctrl+C. Restart with a different mode as needed. Each pass has its own budget. A shared lease prevents overlapping passes; crashed leases expire within 15 minutes.
 
 ## APIs
 
-| Path (under `/api`) | Purpose |
-| --- | --- |
-| `personnel`, `vehicles` | Create/list operational resources |
-| `missions` | Plan, depart, observe and complete missions |
-| `assets`, `assets/{id}/assignment` | Register/assign equipment |
-| `cargo` | Register/list mission cargo |
-| `inventory`, `inventory/adjustments` | Register stock and record opening/corrective balances |
-| `inventory/{id}/movements` | Stock ledger |
-| `missions/{id}/supplies/{item_id}` | Link supplies before departure |
-| `missions/{id}/impact` | Personnel, vehicle, equipment, cargo, stock and alerts |
-| `alerts`, `alerts/{id}/acknowledge`, `alerts/{id}/resolve` | Operator SOS workflow |
-| `pmce/outbox`, `pmce/plan`, `pmce/sync` | Capture, preview and transmit |
-| `pmce/events`, `pmce/status` | Central history and queue metrics |
+See [mission endpoints](../docs/API.md), [file management](../docs/DATA_MANAGEMENT.md) and [PMCE events](../docs/PMCE.md).
 
-Payload fields and priorities: [event contract](../docs/PMCE.md). Interactive schemas: `/docs`.
+Payload fields and priorities: [event contract](../docs/PMCE.md). These delivery modes are policies, not network simulations. For a deployed base, use its HTTPS address and an authorized device credential as described in the [base setup guide](../docs/BASE_STATION.md).
 
 ## Verification and limits
 
-Run `python -m pytest -q`. Tests use isolated databases only. All three backend phases are implemented and covered by tests.
+From this folder, run `.\.venv\Scripts\python.exe -m pytest -q`. Tests use isolated databases only.
 
-Profiles do not measure satellite bandwidth. Byte counts exclude HTTP overhead. Maximum event/request size is 64 KiB, including after decompression. Large attachments are not supported. Receipts confirm database commit; operator SOS acknowledgement is separate. Logs/reports are retained in event history. Existing frontend delivery is separate from the field-service PMCE queue. No authentication or real emergency dispatch integration is included.
+Delivery policies do not measure satellite bandwidth. Byte counts exclude HTTP overhead. Maximum event/request size is 64 KiB, including after decompression. Large event attachments are not supported. Receipts confirm database commit; operator SOS acknowledgement is separate. Browser delivery is separate from the field-service queue. Base mode supports sign-in and device credentials; local mode has no sign-in. Real emergency dispatch and the remote file-transfer interface are not implemented.

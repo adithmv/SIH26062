@@ -27,7 +27,7 @@ Sources: `manual`, `radio`, `gnss`. Conditions: `unknown`, `operational`, `maint
 - Receipt, audit and effects commit together. Invalid events produce no partial changes.
 - Identical ID/content replays return the original receipt, including after completion. Different contents with the same ID return 409.
 - Late observations remain in history without replacing newer positions/contact. Condition uses the latest observed time; equal timestamps preserve the accepted state.
-- SOS creates an alert and raises escalation to emergency. Operator acknowledgement and resolution require current alert `version`, `operator` and `note`. Names are operator-entered attribution, not authenticated identities.
+- SOS creates an alert and raises escalation to emergency. Operator acknowledgement and resolution require current alert `version`, `operator` and `note`. Base mode uses the signed-in account for attribution; local mode uses the entered operator name.
 - Open alerts prevent mission completion or lowering escalation. Resolving an alert does not automatically clear escalation.
 - Cargo follows `registered -> loaded -> in_transit -> delivered`; loaded/in-transit/delivered cargo can become `returned`. Movements require the current version and cannot predate the last movement.
 - Stock uses nonzero integer deltas, a current version and a balance between zero and one billion. Critical stock requires `critical_inventory`; ordinary stock requires `inventory_update`.

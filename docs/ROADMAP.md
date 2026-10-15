@@ -1,10 +1,12 @@
 # Development roadmap
 
+This page preserves the original implementation phases. For current setup and supported behaviour, start with the [guides](README.md).
+
 ## Backend branch update
 
 The three backend work phases on `pmce-backend` are implemented: reliable PMCE delivery, mission event integration, and cargo/equipment/inventory. Fresh installations start empty; former demo fixtures are test-only. See `backend/README.md` and `docs/PMCE.md`.
 
-The milestones below describe the broader application roadmap. New backend APIs do not imply that corresponding frontend workflows or production-readiness work is complete. Large attachments and real communication/authentication integrations remain future work.
+The milestones below describe the broader application roadmap. New backend APIs do not imply that corresponding frontend workflows or production-readiness work is complete. Large event attachments and real communication-provider integrations remain future work. Base sign-in and device credentials are implemented; deployment verification remains necessary.
 
 ## Objective
 
