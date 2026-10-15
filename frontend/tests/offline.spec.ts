@@ -289,38 +289,18 @@ test("a conflicting queued report remains visible and never silently overwrites 
     (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
   ).toHaveLength(2);
 });
-test("profile budget blocks delivery until broadband reconnects", async ({
-  page,
-  request,
-}) => {
+test("old simulator settings do not affect real requests", async ({ page, request }) => {
   const mission = await fieldMission(request);
-  await prepare(page, mission.code);
-  await page.getByText("Connection settings", { exact: true }).click();
-  await page.getByLabel("Connection profile").selectOption("offline");
-  await checkIn(page, "Simulator queued report");
-  expect(
-    (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
-  ).toHaveLength(0);
-  await page.evaluate(() =>
-    localStorage.setItem(
-      "polaris-byte-meter",
-      JSON.stringify({ start: Date.now(), bytes: 2048 }),
-    ),
-  );
-  await page.getByLabel("Connection profile").selectOption("constrained");
-  await page
-    .getByRole("button", { name: "Send pending reports", exact: true })
-    .click();
-  await expect(page.locator(".local-reports")).toContainText(
-    "budget exhausted",
-  );
-  expect(
-    (await (await request.get("/api/missions/" + mission.id)).json()).check_ins,
-  ).toHaveLength(0);
-  await page.getByLabel("Connection profile").selectOption("broadband");
-  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({
-    timeout: 15000,
+  await page.addInitScript(() => {
+    localStorage.setItem("polaris-link", JSON.stringify({ profile: "offline", failures: true }));
+    localStorage.setItem("polaris-byte-meter", JSON.stringify({ start: Date.now(), bytes: 2048 }));
   });
+  await prepare(page, mission.code);
+  await expect(page.getByLabel("Connection profile")).toHaveCount(0);
+  await expect(page.getByLabel("Simulate request failures")).toHaveCount(0);
+  await checkIn(page, "Real connection report");
+  await expect(page.getByText("0 undelivered", { exact: true })).toBeVisible({ timeout: 15000 });
+  expect((await (await request.get("/api/missions/" + mission.id)).json()).check_ins).toHaveLength(1);
 });
 
 test.afterEach(async ({ request }) => {

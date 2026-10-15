@@ -19,7 +19,7 @@ export async function network<T>(
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 5000);
   try {
-    if (!baseMode) await beforeRequest(body, controller.signal);
+    if (!baseMode) await beforeRequest(controller.signal);
     const response = await fetch("/api/" + path, {
       method,
       signal: controller.signal,

@@ -66,7 +66,7 @@ Completion: after initial setup, disconnect and reload; mission records remain a
 
 Deliverables:
 - Broadband, constrained and offline transport profiles.
-- Reachability checks and a simulator that enforces latency, bandwidth budgets and request failures.
+- Real server reachability checks; network simulation has been removed.
 - Event priorities: SOS, personnel safety/location, critical inventory, routine updates and large attachments.
 - Byte-budget-aware scheduling, bounded retries with backoff and separate attachment transfer.
 - Server acknowledgements, idempotent event ingestion and reconnect synchronization.
@@ -90,7 +90,7 @@ Completion: selecting an overdue mission reveals its associated people and asset
 Deliverables:
 - Focused automated tests for priority ordering, duplicate delivery, conflicting edits, overdue rules and recovery.
 - End-to-end tests covering offline reload, constrained delivery and reconnection.
-- Repeatable demo controls with clearly labeled simulated locations and communication profiles.
+- Repeatable automated tests using isolated test data.
 - Visible queue depth, acknowledged events, delivery latency and transferred bytes.
 - Demo guide and documented limitations, including browser background execution and storage constraints.
 

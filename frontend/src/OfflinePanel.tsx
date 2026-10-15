@@ -1,6 +1,4 @@
 import { network } from "./transport";
-import { configureLink, linkSettings } from "./connectivity";
-import type { Profile } from "./connectivity";
 import type { MissionDetail } from "./api";
 import { useEffect, useState } from "react";
 import { liveQuery } from "dexie";
@@ -56,25 +54,19 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
   const [prepared, setPrepared] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [link, setLink] = useState(linkSettings);
   const [review, setReview] = useState<{
     id: string;
     mission: MissionDetail;
   } | null>(null);
   useEffect(() => {
-    const update = () => setLink(linkSettings());
     const deliver = () => {
       void sendPending(undefined, true).catch(() => setError(STORE_ERROR));
     };
     const timer = setInterval(deliver, 5000);
-    window.addEventListener("polaris-link", update);
-    window.addEventListener("storage", update);
     window.addEventListener("online", deliver);
     deliver();
     return () => {
       clearInterval(timer);
-      window.removeEventListener("polaris-link", update);
-      window.removeEventListener("storage", update);
       window.removeEventListener("online", deliver);
     };
   }, []);
@@ -154,34 +146,12 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
       <details className="connection-settings">
         <summary>Connection settings</summary>
       <div className="actions">
-        <label>
-          Connection profile{" "}
-          <select
-            aria-label="Connection profile"
-            value={link.profile}
-            onChange={(e) =>
-              configureLink(e.target.value as Profile, link.failures)
-            }
-          >
-            <option value="broadband">Broadband</option>
-            <option value="constrained">Constrained</option>
-            <option value="offline">Offline</option>
-          </select>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={link.failures}
-            onChange={(e) => configureLink(link.profile, e.target.checked)}
-          />{" "}
-          Simulate request failures
-        </label>
         <button
           disabled={busy}
           onClick={() =>
             run(async () => {
               await network("health");
-              setError("Server is reachable using the selected profile.");
+              setError("Server is reachable.");
             })
           }
         >
@@ -189,7 +159,6 @@ export default function OfflinePanel({ onRefresh }: { onRefresh: () => void }) {
         </button>
       </div>
       <p className="muted">
-        Constrained mode: 800 ms delay, 2,048 outgoing bytes per minute.
         Automatic sync checks every five seconds while this page is open.
       </p>
       </details>

@@ -1,4 +1,4 @@
-import { LinkDeferred, linkSettings } from "./connectivity";
+import { LinkDeferred } from "./connectivity";
 import Dexie from "dexie";
 import type { Table } from "dexie";
 import type { Mission, MissionDetail, Person, Vehicle } from "./api";
@@ -198,7 +198,7 @@ export async function saveReport(
   );
 }
 export async function sendPending(retryId?: string, automatic = false) {
-  if (linkSettings().profile === "offline" || !navigator.onLine) return;
+  if (!navigator.onLine) return;
   if (!navigator.locks)
     throw new Error(
       "This browser cannot safely coordinate delivery across tabs. Reports remain saved locally.",

@@ -80,11 +80,11 @@ This is a basic foreground delivery path. Priority scheduling, connection profil
 Browser tests serve a production build and exercise real service-worker caching and IndexedDB. They cover offline reload and map assets, durable reports, reconnection delivery, lost acknowledgements, atomic rollback on simulated quota failure and conflict retention. Backend tests cover receipt replay and mismatched IDs in addition to the mission workflows.
 
 
-## Phase 4 connection simulator
+## Real connection and retry behavior
 
-Connection profiles persist for this browser origin. Broadband sends immediately. Constrained adds 800 ms latency and reserves at most 2,048 outgoing JSON payload bytes per 60-second window, coordinated across tabs. This is an application payload budget, not measured satellite bandwidth: responses, headers, health checks and online map downloads are outside the byte budget. Offline prevents API fetches. Failure simulation rejects requests until disabled; Check server connection performs a real health request through the selected profile.
+Requests use the actual network. Network simulation controls, artificial delays and payload budgets have been removed. Previously saved simulator settings are ignored. Check server connection makes a real health request.
 
-While the app is open, automatic delivery checks every five seconds and on browser reconnection. Retry delays increase to a maximum of one minute; five unsuccessful attempts pause automatic retries. Manual Send pending reports retries retained pending entries. Budget deferrals do not consume retry attempts. Stable event IDs protect against duplicated effects after a lost receipt. Web Locks prevent simultaneous delivery from multiple tabs.
+While the app is open, automatic delivery checks every five seconds and on browser reconnection. Retry delays increase to a maximum of one minute; five unsuccessful attempts pause automatic retries. Manual Send pending reports retries retained pending entries. Stable event IDs protect against duplicated effects after a lost receipt. Web Locks prevent simultaneous delivery from multiple tabs.
 
 Check-ins precede positions, with creation time breaking ties. Original reports remain immutable in the reports store. A version rejection retains the report and blocks that mission's subsequent delivery. Review server conflict loads current server state; the operator can explicitly append the original observation using that reviewed version. Another concurrent change rejects it again. Completed missions cannot accept this resolution. Mission plan edits remain online with version checks.
 
