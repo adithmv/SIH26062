@@ -27,9 +27,9 @@ class EventRoute(APIRoute):
                 raise HTTPException(415, "Unsupported content encoding.")
             raw = bytearray()
             async for chunk in request.stream():
-                raw.extend(chunk)
-                if len(raw) > MAX_EVENT_BYTES:
+                if len(raw) + len(chunk) > MAX_EVENT_BYTES:
                     raise HTTPException(413, "Request exceeds 64 KiB.")
+                raw.extend(chunk)
             data = bytes(raw)
             if encoding == "gzip":
                 try:
