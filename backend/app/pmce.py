@@ -321,10 +321,15 @@ def status(session: Session = Depends(get_session)):
     counts.update(dict(session.execute(select(state, func.count()).group_by(state)).all()))
     priorities = dict(session.execute(select(PMCEOutbox.priority, func.count()).where(
         PMCEOutbox.acknowledged_at.is_(None), PMCEOutbox.superseded_by.is_(None)).group_by(PMCEOutbox.priority)).all())
+    totals = session.execute(select(
+        func.coalesce(func.sum(PMCEOutbox.attempts), 0),
+        func.coalesce(func.sum(PMCEOutbox.bytes_attempted), 0),
+        func.coalesce(func.sum(PMCEOutbox.bytes_acknowledged), 0),
+    )).one()
     return {"counts": counts, "undelivered_by_priority": {f"P{i}": priorities.get(i, 0) for i in range(5)},
-            "attempts": session.scalar(select(func.coalesce(func.sum(PMCEOutbox.attempts), 0))),
-            "payload_bytes_attempted": session.scalar(select(func.coalesce(func.sum(PMCEOutbox.bytes_attempted), 0))),
-            "payload_bytes_acknowledged": session.scalar(select(func.coalesce(func.sum(PMCEOutbox.bytes_acknowledged), 0))),
+            "attempts": totals[0],
+            "payload_bytes_attempted": totals[1],
+            "payload_bytes_acknowledged": totals[2],
             "central_events": session.scalar(select(func.count()).select_from(PMCEReceipt))}
 
 

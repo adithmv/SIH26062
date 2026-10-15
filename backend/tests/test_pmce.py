@@ -236,3 +236,20 @@ def test_invalid_central_address_keeps_event_unattempted(client, monkeypatch, ad
 def test_central_origin_preserves_port_and_ipv6(monkeypatch, address, expected):
     monkeypatch.setenv('PMCE_CENTRAL_URL', address)
     assert pmce.central_url() == expected
+
+def test_delivery_totals_include_pending_and_acknowledged_events(client, database):
+    empty = client.get('/api/pmce/status').json()
+    assert (empty['attempts'], empty['payload_bytes_attempted'], empty['payload_bytes_acknowledged']) == (0, 0, 0)
+    bodies = [event(), event('check_in')]
+    for body in bodies:
+        client.post('/api/pmce/outbox', json=body)
+    with Session(database) as session:
+        first = session.get(PMCEOutbox, UUID(bodies[0]['id']))
+        first.attempts, first.bytes_attempted, first.bytes_acknowledged = 2, 800, 400
+        first.acknowledged_at = pmce.now_utc()
+        second = session.get(PMCEOutbox, UUID(bodies[1]['id']))
+        second.attempts, second.bytes_attempted = 1, 300
+        session.commit()
+    state = client.get('/api/pmce/status').json()
+    assert (state['attempts'], state['payload_bytes_attempted'], state['payload_bytes_acknowledged']) == (3, 1100, 400)
+    assert state['counts']['pending'] == state['counts']['acknowledged'] == 1
