@@ -92,6 +92,22 @@ def test_listing_reports_missing_files_and_real_folders(client):
     assert not client.get("/api/files").json()["files"][0]["copies"][0]["available"]
 
 
+def test_listing_does_not_recreate_missing_file_folders(client):
+    row = upload(client)
+    copy = client.post(f'/api/files/{row["id"]}/prepare', json={}).json()["copies"][0]
+    for stored in (row, copy):
+        path = Path(stored["storage_path"])
+        path.unlink()
+        path.parent.rmdir()
+    result = client.get("/api/files")
+    assert result.status_code == 200
+    listed = result.json()["files"][0]
+    assert not listed["available"]
+    assert not listed["copies"][0]["available"]
+    assert "missing" in listed["status"]
+    assert all(not Path(stored["storage_path"]).parent.exists() for stored in (row, copy))
+
+
 def test_damaged_compression_and_oversized_storage(client, monkeypatch):
     row = upload(client)
     copy = client.post(f'/api/files/{row["id"]}/prepare', json={"compress": True}).json()["copies"][0]

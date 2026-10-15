@@ -94,30 +94,38 @@ def require(session, model, identifier):
     return row
 
 
-def describe(row, session, copies=None):
+def describe(row, session, copies=None, storage=None, base_mode=None):
     if copies is None:
         copies = session.scalars(select(PreparedFile).where(PreparedFile.file_id == row.id).order_by(PreparedFile.created_at)).all()
-    available = location(row.id).is_file()
+    storage = storage if storage is not None else storage_root()
+    base_mode = enabled() if base_mode is None else base_mode
+    path = storage / "originals" / str(row.id)
+    available = path.is_file()
+    prepared = []
+    for copy in copies:
+        copy_path = storage / "prepared" / str(copy.id)
+        prepared.append({"id": str(copy.id), "size": copy.size, "compressed": copy.compressed,
+                         "encrypted": copy.encrypted, "storage_path": str(copy_path),
+                         "created_at": copy.created_at, "available": copy_path.is_file()})
     return {"id": str(row.id), "name": row.name, "size": row.size,
-            "created_at": row.created_at, "available": location(row.id).is_file(),
+            "created_at": row.created_at, "available": available,
             "importance": row.importance, "confidentiality": row.confidentiality,
-            "sha256": row.sha256,
-            "storage_path": str(location(row.id)), "status": ("Stored at base" if enabled() else "Stored locally — not sent to base") if available else "Original missing from storage",
-            "copies": [{"id": str(p.id), "size": p.size, "compressed": p.compressed,
-                        "encrypted": p.encrypted, "storage_path": str(location(p.id, True)),
-                        "created_at": p.created_at, "available": location(p.id, True).is_file()}
-                       for p in copies]}
+            "sha256": row.sha256, "storage_path": str(path),
+            "status": ("Stored at base" if base_mode else "Stored locally — not sent to base") if available else "Original missing from storage",
+            "copies": prepared}
 
 
 @router.get("")
 def listing(response: Response, session: Session = Depends(get_session)):
     response.headers["Cache-Control"] = "no-store"
+    storage, base_mode = root(), enabled()
     copies = {}
     for copy in session.scalars(select(PreparedFile).order_by(PreparedFile.created_at)):
         copies.setdefault(copy.file_id, []).append(copy)
-    return {"storage_root": str(root()), "max_bytes": LIMIT,
-            "folders": {"originals": str(root() / "originals"), "prepared": str(root() / "prepared")},
-            "files": [describe(row, session, copies.get(row.id, [])) for row in session.scalars(select(ManagedFile).order_by(ManagedFile.created_at.desc()))]}
+    return {"storage_root": str(storage), "max_bytes": LIMIT,
+            "folders": {"originals": str(storage / "originals"), "prepared": str(storage / "prepared")},
+            "files": [describe(row, session, copies.get(row.id, []), storage, base_mode)
+                      for row in session.scalars(select(ManagedFile).order_by(ManagedFile.created_at.desc()))]}
 
 
 @router.post("", status_code=201)
