@@ -32,6 +32,13 @@ def test_backup_manifest_and_restart_on_failure(tmp_path, monkeypatch, fail_dump
         return SimpleNamespace()
     monkeypatch.setattr(backup, "run", run)
     monkeypatch.setattr(backup.sys, "argv", ["backup.py", str(destination)])
+    file_digest = backup.hashlib.file_digest
+
+    def checksum_after_restart(*args, **kwargs):
+        assert calls[-1] == ("start", "api", "web")
+        return file_digest(*args, **kwargs)
+
+    monkeypatch.setattr(backup.hashlib, "file_digest", checksum_after_restart)
     if fail_dump:
         with pytest.raises(RuntimeError, match="dump failure"):
             backup.main()

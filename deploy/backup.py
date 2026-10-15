@@ -31,14 +31,14 @@ def main():
             run("exec", "-T", "db", "pg_dump", "-U", "polar", "-Fc", "polar", stdout=target)
         with (destination / "files.tar.gz").open("xb") as target:
             run("run", "--rm", "--no-deps", "-T", "api", "tar", "-czf", "-", "-C", "/app/data/files", ".", stdout=target)
-        checksums = {}
-        for name in ("database.dump", "files.tar.gz"):
-            with (destination / name).open("rb") as source:
-                checksums[name] = hashlib.file_digest(source, "sha256").hexdigest()
-        (destination / "manifest.json").write_text(json.dumps({"created_at": datetime.now(timezone.utc).isoformat(), "sha256": checksums}, indent=2))
-        print("Backup completed. Keep this directory encrypted and copy it to separate storage.")
     finally:
         run("start", "api", "web")
+    checksums = {}
+    for name in ("database.dump", "files.tar.gz"):
+        with (destination / name).open("rb") as source:
+            checksums[name] = hashlib.file_digest(source, "sha256").hexdigest()
+    (destination / "manifest.json").write_text(json.dumps({"created_at": datetime.now(timezone.utc).isoformat(), "sha256": checksums}, indent=2))
+    print("Backup completed. Keep this directory encrypted and copy it to separate storage.")
 
 
 if __name__ == "__main__":
