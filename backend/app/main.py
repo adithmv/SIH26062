@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -80,7 +80,10 @@ def health(session: Session = Depends(get_session)):
 
 @app.get("/api/missions", response_model=list[MissionOut])
 def missions(session: Session = Depends(get_session), now: datetime = Depends(now_utc)):
-    return [summary(session, row, now) for row in session.scalars(select(Mission).order_by(Mission.code))]
+    contacts = [select(func.max(model.observed_at)).where(model.mission_id == Mission.id)
+                .correlate(Mission).scalar_subquery() for model in (CheckIn, Position)]
+    rows = session.execute(select(Mission, *contacts).order_by(Mission.code))
+    return [summary(session, mission, now, (check_in, position)) for mission, check_in, position in rows]
 
 
 @app.get("/api/missions/{mission_id}", response_model=MissionDetailOut)

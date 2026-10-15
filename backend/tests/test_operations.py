@@ -272,3 +272,24 @@ def test_equal_observation_times_show_latest_received_report(client, clock, data
     current = client.get("/api/missions/" + mission["id"]).json()
     assert current["last_position"]["latitude"] == -71
     assert [report["note"] for report in current["check_ins"]] == ["Update 1", "Update 0"]
+
+
+def test_mission_list_reads_contact_times_in_one_query(client, clock, database):
+    from sqlalchemy import event
+
+    statements = []
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(database, "before_cursor_execute", capture)
+    try:
+        response = client.get("/api/missions")
+    finally:
+        event.remove(database, "before_cursor_execute", capture)
+    assert response.status_code == 200
+    assert len(statements) == 1
+    for mission in response.json():
+        detail = client.get("/api/missions/" + mission["id"]).json()
+        assert all(detail[key] == value for key, value in mission.items())

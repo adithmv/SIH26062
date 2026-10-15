@@ -29,16 +29,17 @@ def require_mission(session, identity):
     return mission
 
 
-def summary(session, mission, now):
-    check_in = session.scalar(select(CheckIn).where(CheckIn.mission_id == mission.id)
-                              .order_by(CheckIn.observed_at.desc(), CheckIn.received_at.desc(), CheckIn.id).limit(1))
-    position = session.scalar(select(Position).where(Position.mission_id == mission.id)
-                              .order_by(Position.observed_at.desc(), Position.received_at.desc(), Position.id).limit(1))
-    contact_times = [utc(item.observed_at) for item in [check_in, position] if item]
+def summary(session, mission, now, contacts=None):
+    if contacts is None:
+        contacts = tuple(session.scalar(select(model.observed_at).where(model.mission_id == mission.id)
+                                        .order_by(model.observed_at.desc()).limit(1))
+                         for model in (CheckIn, Position))
+    check_in, position = contacts
+    contact_times = [utc(value) for value in contacts if value]
     last_contact = max(contact_times) if contact_times else None
     due = utc(mission.expected_check_in)
     if check_in:
-        due = max(due, utc(check_in.observed_at) + timedelta(minutes=mission.check_in_interval_minutes))
+        due = max(due, utc(check_in) + timedelta(minutes=mission.check_in_interval_minutes))
     due = min(due, utc(mission.expected_return))
     contact = "normal"
     overdue_return = False
